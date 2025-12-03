@@ -1,8 +1,17 @@
 import React from 'react';
 import { Token, Mood } from '../types';
-import { X, ExternalLink, Globe, Activity } from 'lucide-react';
-import { AreaChart, Area, Tooltip, ResponsiveContainer } from 'recharts';
 import { formatCompactNumber } from '../utils';
+
+// Inline Icons
+const XIcon = ({ size = 24 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+);
+const GlobeIcon = ({ size = 24 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+);
+const ActivityIcon = ({ size = 24 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+);
 
 interface DetailModalProps {
   token: Token | null;
@@ -10,15 +19,15 @@ interface DetailModalProps {
   mood: Mood;
 }
 
-// Generate fake chart data (Codex/DexScreener free/basic doesn't provide history easily in this specific single query)
+// Generate fake chart data
 const generateChartData = (currentPrice: number, change: number) => {
   const data = [];
   let price = currentPrice * (1 - change / 100);
   for (let i = 0; i < 24; i++) {
     price = price * (1 + (Math.random() * 0.04 - 0.02));
-    data.push({ time: `${i}:00`, price });
+    data.push({ time: i, price });
   }
-  data.push({ time: 'Now', price: currentPrice });
+  data.push({ time: 24, price: currentPrice });
   return data;
 };
 
@@ -43,6 +52,24 @@ const DetailModal: React.FC<DetailModalProps> = ({ token, onClose, mood }) => {
       if (p < 1) return p.toFixed(4);
       return p.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
+
+  // --- Simple SVG Chart Logic ---
+  const minPrice = Math.min(...chartData.map(d => d.price));
+  const maxPrice = Math.max(...chartData.map(d => d.price));
+  const priceRange = maxPrice - minPrice || 1; // avoid divide by zero
+
+  // Map data to 0-100 coordinates
+  // X: 0 to 100
+  // Y: 100 to 0 (SVG y=0 is top)
+  const points = chartData.map((d, i) => {
+    const x = (i / (chartData.length - 1)) * 100;
+    const normalizedPrice = (d.price - minPrice) / priceRange;
+    const y = 100 - (normalizedPrice * 80 + 10); // keep within 10%-90% vertical area
+    return `${x},${y}`;
+  }).join(' ');
+
+  const areaPath = `M0,100 ${points.split(' ').map((p, i) => `L${p}`).join(' ')} L100,100 Z`;
+  const linePath = `M${points.split(' ').map((p, i) => i === 0 ? p : `L${p}`).join(' ')}`;
 
   return (
     <div className={`fixed inset-0 z-50 flex items-center justify-center p-4 ${overlayClass}`} onClick={onClose}>
@@ -81,7 +108,7 @@ const DetailModal: React.FC<DetailModalProps> = ({ token, onClose, mood }) => {
             onClick={onClose} 
             className="p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
           >
-            <X size={24} className={mood === 'Playful' ? 'text-slate-400' : 'text-slate-400'} />
+            <XIcon size={24} />
           </button>
         </div>
 
@@ -97,35 +124,17 @@ const DetailModal: React.FC<DetailModalProps> = ({ token, onClose, mood }) => {
             </div>
         </div>
 
-        <div className="h-48 w-full bg-gradient-to-b from-transparent to-black/5 dark:to-white/5 mt-2">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={chartData}>
+        <div className="h-48 w-full mt-2 relative overflow-hidden">
+           <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="w-full h-full">
               <defs>
-                <linearGradient id="colorPrice" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor={color} stopOpacity={0.3}/>
-                  <stop offset="95%" stopColor={color} stopOpacity={0}/>
-                </linearGradient>
+                 <linearGradient id="chartGradient" x1="0" x2="0" y1="0" y2="1">
+                    <stop offset="0%" stopColor={color} stopOpacity="0.3" />
+                    <stop offset="100%" stopColor={color} stopOpacity="0" />
+                 </linearGradient>
               </defs>
-              <Tooltip 
-                contentStyle={{ 
-                  borderRadius: mood === 'Playful' ? '12px' : '0px',
-                  border: 'none',
-                  boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)',
-                  backgroundColor: mood === 'Playful' ? 'white' : '#1e293b',
-                  color: mood === 'Playful' ? '#333' : '#fff'
-                }}
-                formatter={(value: number) => [`$${value < 1 ? value.toExponential(4) : value.toFixed(2)}`, 'Price']}
-              />
-              <Area 
-                type="monotone" 
-                dataKey="price" 
-                stroke={color} 
-                strokeWidth={3}
-                fillOpacity={1} 
-                fill="url(#colorPrice)" 
-              />
-            </AreaChart>
-          </ResponsiveContainer>
+              <path d={areaPath} fill="url(#chartGradient)" />
+              <path d={linePath} fill="none" stroke={color} strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinecap="round" strokeLinejoin="round" />
+           </svg>
         </div>
 
         {/* Stats Grid */}
@@ -155,14 +164,14 @@ const DetailModal: React.FC<DetailModalProps> = ({ token, onClose, mood }) => {
                 ? 'bg-black text-white rounded-xl shadow-lg hover:-translate-y-1' 
                 : 'bg-indigo-600 text-white rounded-none hover:bg-indigo-500'
             }`}>
-              <Activity size={18} /> View on Defined.fi
+              <ActivityIcon size={18} /> View on Defined.fi
             </a>
             <button className={`p-3 transition-colors ${
               mood === 'Playful' 
                 ? 'bg-gray-100 rounded-xl hover:bg-gray-200 text-gray-600' 
                 : 'bg-slate-800 rounded-none hover:bg-slate-700 text-slate-300'
             }`}>
-              <Globe size={20} />
+              <GlobeIcon size={20} />
             </button>
         </div>
       </div>

@@ -5,7 +5,29 @@ import Treemap from './components/Treemap';
 import DetailModal from './components/DetailModal';
 import { getMarketInsight } from './services/geminiService';
 import { fetchMonadTokens } from './services/monadService';
-import { Sparkles, BarChart2, Zap, RefreshCw, Moon, Sun, Search, Menu } from 'lucide-react';
+
+// Inline Icons to avoid react version conflicts
+const BarChart2Icon = ({ size = 24, strokeWidth=2 }: { size?: number, strokeWidth?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+);
+const SparklesIcon = ({ size = 24 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"></path></svg>
+);
+const RefreshCwIcon = ({ size = 24 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path><path d="M21 3v5h-5"></path><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path><path d="M8 16H3v5"></path></svg>
+);
+const MoonIcon = ({ size = 24 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path></svg>
+);
+const SunIcon = ({ size = 24 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2"></path><path d="M12 20v2"></path><path d="m4.93 4.93 1.41 1.41"></path><path d="m17.66 17.66 1.41 1.41"></path><path d="M2 12h2"></path><path d="M20 12h2"></path><path d="m6.34 17.66-1.41 1.41"></path><path d="m19.07 4.93-1.41 1.41"></path></svg>
+);
+const SearchIcon = ({ size = 24 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+);
+const MenuIcon = ({ size = 24 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="4" y1="12" x2="20" y2="12"></line><line x1="4" y1="6" x2="20" y2="6"></line><line x1="4" y1="18" x2="20" y2="18"></line></svg>
+);
 
 const App: React.FC = () => {
   const [tokens, setTokens] = useState<Token[]>(MOCK_TOKENS_INIT);
@@ -92,7 +114,7 @@ const App: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className={`p-2 rounded-lg ${mood === 'Playful' ? 'bg-indigo-500 text-white rotate-3' : 'bg-purple-600 text-white'}`}>
-              <BarChart2 size={24} strokeWidth={2.5} />
+              <BarChart2Icon size={24} strokeWidth={2.5} />
             </div>
             <h1 className={`text-2xl font-bold tracking-tight ${mood === 'Playful' ? 'font-display' : 'font-mono'}`}>
               Monax
@@ -111,7 +133,7 @@ const App: React.FC = () => {
                 }`}
                 onClick={fetchInsight}
               >
-                <Sparkles size={16} className={mood === 'Playful' ? 'text-purple-500' : 'text-emerald-400'} />
+                <SparklesIcon size={16} />
                 <span className="text-sm font-medium opacity-90">{summary.headline}</span>
                 <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
                   summary.sentiment === 'Bullish' ? 'bg-green-500/20 text-green-600' : 
@@ -122,7 +144,7 @@ const App: React.FC = () => {
               </div>
             ) : (
                 <button onClick={fetchInsight} className="text-sm opacity-50 hover:opacity-100 flex items-center gap-1">
-                    <RefreshCw size={14} /> AI Analysis
+                    <RefreshCwIcon size={14} /> AI Analysis
                 </button>
             )}
           </div>
@@ -136,13 +158,13 @@ const App: React.FC = () => {
                   : 'bg-slate-800 text-yellow-400 hover:bg-slate-700'
               }`}
             >
-              {mood === 'Playful' ? <Sun size={20} /> : <Moon size={20} />}
+              {mood === 'Playful' ? <SunIcon size={20} /> : <MoonIcon size={20} />}
             </button>
             <button className={`p-2 rounded-full hidden sm:block ${mood === 'Playful' ? 'hover:bg-gray-100' : 'hover:bg-slate-800'}`}>
-                <Search size={20} />
+                <SearchIcon size={20} />
             </button>
              <button className={`p-2 rounded-full sm:hidden ${mood === 'Playful' ? 'hover:bg-gray-100' : 'hover:bg-slate-800'}`}>
-                <Menu size={20} />
+                <MenuIcon size={20} />
             </button>
           </div>
         </div>
