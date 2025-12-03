@@ -31,8 +31,10 @@ const MenuIcon = ({ size = 24 }: { size?: number }) => (
 
 const App: React.FC = () => {
   const [tokens, setTokens] = useState<Token[]>(MOCK_TOKENS_INIT);
+  const [filteredTokens, setFilteredTokens] = useState<Token[]>(MOCK_TOKENS_INIT);
   const [mood, setMood] = useState<Mood>('Playful');
   const [selectedToken, setSelectedToken] = useState<Token | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const [summary, setSummary] = useState<MarketSummary | null>(null);
   const [loadingInsight, setLoadingInsight] = useState(false);
@@ -79,15 +81,24 @@ const App: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
+  // Filtering Logic
+  useEffect(() => {
+    if (selectedCategory === 'All') {
+      setFilteredTokens(tokens);
+    } else {
+      setFilteredTokens(tokens.filter(t => t.category === selectedCategory));
+    }
+  }, [selectedCategory, tokens]);
+
   // Fetch AI Insight
   const fetchInsight = useCallback(async () => {
     if (!process.env.API_KEY) return;
     setLoadingInsight(true);
-    // Use the current tokens state for insight
-    const result = await getMarketInsight(tokens);
+    // Use the current filtered tokens for insight to match view
+    const result = await getMarketInsight(filteredTokens.length > 0 ? filteredTokens : tokens);
     setSummary(result);
     setLoadingInsight(false);
-  }, [tokens]);
+  }, [filteredTokens, tokens]);
 
   // Initial insight fetch once tokens are loaded or changed significantly
   useEffect(() => {
@@ -198,7 +209,7 @@ const App: React.FC = () => {
         >
           {dimensions.width > 0 && dimensions.height > 0 && (
             <Treemap
-              data={tokens}
+              data={filteredTokens}
               width={dimensions.width}
               height={dimensions.height}
               mood={mood}
@@ -209,11 +220,12 @@ const App: React.FC = () => {
 
         {/* Categories / Filter Bar */}
         <div className="flex flex-wrap justify-center gap-2 pb-8">
-            {['All', 'Layer 1', 'Meme', 'DeFi', 'Gaming', 'AI'].map(cat => (
+            {['All', 'Meme', 'AI', 'DeFi', 'Staked', 'Wrapped'].map(cat => (
                 <button 
                     key={cat}
+                    onClick={() => setSelectedCategory(cat)}
                     className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
-                        cat === 'All' 
+                        selectedCategory === cat
                             ? (mood === 'Playful' ? 'bg-black text-white' : 'bg-indigo-600 text-white')
                             : (mood === 'Playful' ? 'bg-white hover:bg-gray-50 shadow-sm text-gray-600' : 'bg-slate-800 hover:bg-slate-700 text-slate-300')
                     }`}

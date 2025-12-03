@@ -61,28 +61,13 @@ export const fetchMonadTokens = async (): Promise<Token[]> => {
         .filter((item: any) => {
             const t = item.token;
             const s = t.symbol?.toUpperCase();
-            const n = t.name?.toUpperCase();
-
-            // 1. Explicitly ALLOW wMON (Wrapped Monad)
-            if (s === 'WMON') return true;
-
-            // 2. Filter out specific Excluded Symbols (Stables, LSTs, Wrapped Majors)
+            
+            // Exclude specific Stablecoins only
             const EXCLUDED_SYMBOLS = new Set([
-                'USDC', 'USDT', 'DAI', 'USDE', 'FDUSD', 'FRAX', 'AUSD', 'MUSD', // Stablecoins
-                'WETH', 'WBTC', 'WBNB', 'SOL', // Wrapped Majors
-                'WSTETH', 'SHMONAD', 'STMON', 'EZETH', 'WEETH', 'STONE', 'RSETH', 'METH' // LSTs & Derivatives
+                'USDC', 'USDT', 'DAI', 'USDE', 'FDUSD', 'FRAX', 'AUSD', 'MUSD', 'LUSD'
             ]);
 
             if (EXCLUDED_SYMBOLS.has(s)) return false;
-
-            // 3. Filter out based on Name Patterns
-            const EXCLUDED_PATTERNS = [
-                'USD COIN', 'TETHER', 'DAI STABLECOIN', 
-                'WRAPPED ETHER', 'WRAPPED BITCOIN', 
-                'STAKED MONAD', 'LIQUID STAKED', 'SHARDED MONAD'
-            ];
-
-            if (EXCLUDED_PATTERNS.some(pattern => n.includes(pattern))) return false;
 
             return true;
         })
@@ -106,6 +91,7 @@ export const fetchMonadTokens = async (): Promise<Token[]> => {
                 volume24h: volume,
                 category: guessCategory(t.symbol, t.name),
                 dominance: 0,
+                // Codex/Defined.fi images
                 imageUrl: info.imageLargeUrl || info.imageSmallUrl || info.imageThumbUrl,
                 pairUrl: `https://www.defined.fi/monad/${t.address}`,
                 chainId: 'monad'
@@ -115,7 +101,7 @@ export const fetchMonadTokens = async (): Promise<Token[]> => {
     // Sort by Market Cap descending
     tokens.sort((a, b) => b.marketCap - a.marketCap);
 
-    const topTokens = tokens.slice(0, 60);
+    const topTokens = tokens.slice(0, 80);
 
     const totalMcap = topTokens.reduce((sum, t) => sum + t.marketCap, 0);
     return topTokens.map(t => ({
@@ -130,15 +116,36 @@ export const fetchMonadTokens = async (): Promise<Token[]> => {
 };
 
 const guessCategory = (symbol: string, name: string): string => {
-   const s = symbol.toLowerCase();
-   const n = name.toLowerCase();
+   const s = symbol.toUpperCase();
+   const n = name.toUpperCase();
    
-   if (s === 'wmon' || s === 'mon' || n.includes('monad')) return 'Layer 1';
-   if (n.includes('swap') || n.includes('dex') || n.includes('finance') || n.includes('yield') || n.includes('perp')) return 'DeFi';
-   if (n.includes('game') || n.includes('play') || n.includes('quest')) return 'Gaming';
-   if (n.includes('ai') || n.includes('gpt') || n.includes('intel') || n.includes('agent')) return 'AI';
+   // 1. Wrapped Tokens
+   if (
+       (s.startsWith('W') && (n.includes('WRAPPED') || s === 'WMON' || s === 'WETH' || s === 'WBTC')) &&
+       s !== 'WIF' && s !== 'WEN' // Exclude common memes that start with W
+    ) {
+       return 'Wrapped';
+   }
+
+   // 2. Staked / LSTs
+   if (s.startsWith('ST') || s.startsWith('EZ') || n.includes('STAKED') || n.includes('LIQUID')) {
+       return 'Staked';
+   }
+
+   // 3. AI Tokens
+   if (n.includes(' AI') || n.includes('GPT') || s.includes('AI') || n.includes('INTELLIGENCE') || n.includes('AGENT')) {
+       return 'AI';
+   }
+
+   // 4. DeFi
+   if (
+       n.includes('SWAP') || n.includes('DEX') || n.includes('FINANCE') || 
+       n.includes('PROTOCOL') || n.includes('YIELD') || n.includes('PERP') || 
+       n.includes('DAO') || n.includes('EXCHANGE')
+    ) {
+       return 'DeFi';
+   }
    
-   // Default to Meme for ecosystem tokens that don't fit other strict categories
-   // This ensures the "Meme" default view is populated with the vibrant ecosystem tokens
+   // 5. Default to Meme
    return 'Meme'; 
 }
