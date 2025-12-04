@@ -12,6 +12,7 @@ export interface Token {
   backupImageUrl?: string;
   pairUrl?: string;
   chainId?: string;
+  isStable?: boolean; // New field for stablecoins
 }
 
 export interface Holder {
