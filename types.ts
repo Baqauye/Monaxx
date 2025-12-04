@@ -14,20 +14,6 @@ export interface Token {
   pairUrl?: string;
   chainId?: string;
   isStable?: boolean; // New field for stablecoins
-  score?: number; // Added for ranking algorithm
-}
-
-// New interface for Nad.fun specific tokens
-export interface NadFunToken extends Omit<Token, 'price' | 'change24h' | 'marketCap' | 'volume24h' | 'score'> {
-  tokenURI: string;
-  creator: string;
-  pool: string;
-  virtualMonReserve: number;
-  virtualTokenReserve: number;
-  targetTokenAmount: number;
-  timestamp: number; // Milliseconds since epoch when created/detected
-  // Override category
-  category: 'NadFun';
 }
 
 export interface Holder {
@@ -40,7 +26,7 @@ export interface Holder {
 }
 
 // Extend ViewMode
-export type ViewMode = 'TreeMap' | 'BubbleMap' | 'NadFunTimeline'; // Added 'NadFunTimeline'
+export type ViewMode = 'TreeMap' | 'BubbleMap' | 'NadFunTreemap'; // Added 'NadFunTreemap'
 export type Mood = 'Professional' | 'Playful';
 
 export interface MarketSummary {
