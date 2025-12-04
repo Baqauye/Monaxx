@@ -4,13 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Monax - The Living Market</title>
-
-    <!-- Tailwind via CDN (fine for now) -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Space+Grotesk:wght@400;700&display=swap"
-      rel="stylesheet"
-    />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Space+Grotesk:wght@400;700&display=swap" rel="stylesheet">
     <script>
       tailwind.config = {
         darkMode: 'class',
@@ -25,20 +20,22 @@
                 dark: '#0f172a',
                 light: '#f8fafc',
                 accent: '#6366f1',
-              },
-            },
+              }
+            }
           },
         },
-      };
+      }
     </script>
     <style>
       body {
         margin: 0;
         overflow-x: hidden;
       }
+      /* Smooth scrolling */
       html {
         scroll-behavior: smooth;
       }
+      /* Custom scrollbar */
       ::-webkit-scrollbar {
         width: 6px;
       }
@@ -53,23 +50,28 @@
         background: #334155;
       }
       @keyframes fadeIn {
-        from {
-          opacity: 0;
-          transform: translateY(10px);
-        }
-        to {
-          opacity: 1;
-          transform: translateY(0);
-        }
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
       }
       .animate-fade-in {
         animation: fadeIn 0.5s ease-out forwards;
       }
     </style>
+    <script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@18.2.0",
+    "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+    "react/jsx-runtime": "https://esm.sh/react@18.2.0/jsx-runtime",
+    "@google/genai": "https://esm.sh/@google/genai@0.1.1",
+    "d3": "https://esm.sh/d3@7.9.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.1/",
+    "react/": "https://aistudiocdn.com/react@^19.2.1/"
+  }
+}
+</script>
   </head>
   <body class="bg-slate-50 text-slate-900 transition-colors duration-300">
     <div id="root"></div>
-    <!-- Vite entry -->
-    <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
