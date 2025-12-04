@@ -1,5 +1,5 @@
-// components/NadFunTreemap.tsx (Revised for React compatibility)
-import React, { useState, useEffect, useMemo } from 'react';
+// components/NadFunTreemap.tsx
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import * as d3 from 'd3';
 import { Token, Mood } from '../types';
 import TokenTile from './TokenTile';
@@ -15,21 +15,17 @@ const NadFunTreemap: React.FC<NadFunTreemapProps> = ({ mood, onTileClick, select
   const [tokens, setTokens] = useState<Token[]>([]);
   const [loading, setLoading] = useState(true);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
-  const [dimensions, setDimensions] = useState({ width: 800, height: 600 }); // Default size, will be overridden by parent
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
 
-  // Simulate getting dimensions from parent (App.tsx passes width/height to Treemap)
-  // For now, we'll assume a fixed size or get it from a context/prop if passed differently
-  // Let's assume App.tsx passes dimensions as props or this component calculates its own
+  // Handle window resize
   useEffect(() => {
     const handleResize = () => {
-      // If this component has its own container, calculate its size
-      // Otherwise, rely on props from parent
-      const container = document.querySelector('#nadfun-treemap-container'); // Example ID
-      if (container) {
-          setDimensions({
-              width: container.clientWidth,
-              height: container.clientHeight,
-          });
+      if (containerRef.current) {
+        setDimensions({
+          width: containerRef.current.clientWidth,
+          height: containerRef.current.clientHeight,
+        });
       }
     };
     handleResize();
@@ -82,9 +78,12 @@ const NadFunTreemap: React.FC<NadFunTreemapProps> = ({ mood, onTileClick, select
     };
   }, []);
 
-  // Update treemap layout when tokens or dimensions change using useMemo
-  const treemapNodes = useMemo(() => {
-    if (tokens.length === 0 || dimensions.width <= 0 || dimensions.height <= 0) return [];
+  // Update treemap layout when tokens or dimensions change
+  useEffect(() => {
+    if (tokens.length === 0 || dimensions.width <= 0 || dimensions.height <= 0 || !containerRef.current) return;
+
+    const container = d3.select(containerRef.current);
+    container.selectAll("*").remove(); // Clear previous SVG
 
     const hierarchyData = {
       name: 'NadFunTokens',
@@ -102,8 +101,49 @@ const NadFunTreemap: React.FC<NadFunTreemapProps> = ({ mood, onTileClick, select
       .round(true);
 
     treemapLayout(rootNode as any);
-    return rootNode.leaves();
-  }, [tokens, dimensions, mood]);
+
+    // Create SVG
+    const svg = container.append("svg")
+      .attr("width", dimensions.width)
+      .attr("height", dimensions.height)
+      .style("font", "10px sans-serif");
+
+    // Create cells (rectangles) for each token
+    const cell = svg.selectAll("g")
+      .data(rootNode.leaves())
+      .join("g")
+      .attr("transform", (d: any) => `translate(${d.x0},${d.y0})`);
+
+    // For each cell, append a div that will host the TokenTile component
+    cell.each(function(d: any) {
+      const cellElement = d3.select(this);
+      const tileContainer = cellElement.append("foreignObject")
+        .attr("x", 0)
+        .attr("y", 0)
+        .attr("width", d.x1 - d.x0)
+        .attr("height", d.y1 - d.y0);
+
+      const div = tileContainer.append("xhtml:div")
+        .style("width", "100%")
+        .style("height", "100%");
+
+      // Render TokenTile into the div using React
+      const token = d.data; // The actual token object from the hierarchy
+      const tileElement = (
+        <TokenTile
+          token={token}
+          width={d.x1 - d.x0}
+          height={d.y1 - d.y0}
+          mood={mood}
+          onClick={onTileClick}
+          dimmed={hoveredId !== null && hoveredId !== token.id && token.id !== selectedId}
+          onHover={(isHovering) => setHoveredId(isHovering ? token.id : null)}
+        />
+      );
+      ReactDOM.createRoot(div.node()!).render(tileElement);
+    });
+
+  }, [tokens, dimensions, mood, onTileClick, selectedId, hoveredId]); // Add dependencies
 
   if (loading && tokens.length === 0) {
     return (
@@ -125,34 +165,7 @@ const NadFunTreemap: React.FC<NadFunTreemapProps> = ({ mood, onTileClick, select
   }
 
   return (
-    <div id="nadfun-treemap-container" style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden' }}>
-      {treemapNodes.map((node: any) => {
-        const token = node.data; // The actual token object
-        return (
-          <div
-            key={token.id}
-            style={{
-              position: 'absolute',
-              left: node.x0,
-              top: node.y0,
-              width: node.x1 - node.x0,
-              height: node.y1 - node.y0,
-              transition: 'all 0.5s ease-out' // Smooth transitions
-            }}
-          >
-            <TokenTile
-              token={token}
-              width={node.x1 - node.x0}
-              height={node.y1 - node.y0}
-              mood={mood}
-              onClick={onTileClick}
-              dimmed={hoveredId !== null && hoveredId !== token.id && token.id !== selectedId}
-              onHover={(isHovering) => setHoveredId(isHovering ? token.id : null)}
-            />
-          </div>
-        );
-      })}
-    </div>
+    <div ref={containerRef} className="w-full h-full" />
   );
 };
 
