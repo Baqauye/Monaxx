@@ -3,9 +3,29 @@ import { Token, Holder } from '../types';
 const CODEX_API_KEY = '6a28836dea12a4050f2e0256b585eef55f75aeb8';
 const GRAPHQL_ENDPOINT = 'https://graph.codex.io/graphql';
 
+const isStableCoin = (symbol: string, name: string): boolean => {
+  const s = (symbol || '').toUpperCase();
+  const n = (name || '').toUpperCase();
+  
+  const stableCoins = [
+    'USDT', 'USDC', 'BUSD', 'DAI', 'TUSD', 'USDP', 'USDD', 
+    'FRAX', 'LUSD', 'SUSD', 'MIM', 'FEI', 'ALUSD', 'DOLA',
+    'USD', 'TETHER'
+  ];
+  
+  return stableCoins.some(stable => 
+    s.includes(stable) || n.includes(stable)
+  );
+};
+
 const guessCategory = (symbol: string, name: string): string => {
    const s = (symbol || '').toUpperCase();
    const n = (name || '').toUpperCase();
+   
+   // Check for stablecoins first
+   if (isStableCoin(s, n)) {
+       return 'Stable';
+   }
    
    if (s === 'WMON' || s === 'WETH' || s === 'WBTC' || n.includes('WRAPPED')) {
        return 'Wrapped';
@@ -28,7 +48,36 @@ const guessCategory = (symbol: string, name: string): string => {
    }
    
    return 'Meme'; 
-}
+};
+
+// Function to fetch token image from multiple sources
+const fetchTokenImage = async (tokenAddress: string): Promise<string | null> => {
+  // Try Dexscreener first
+  const dexscreenerUrl = `https://dd.dexscreener.com/ds-data/tokens/monad/${tokenAddress}.png`;
+  
+  try {
+    const response = await fetch(dexscreenerUrl, { method: 'HEAD' });
+    if (response.ok) {
+      return dexscreenerUrl;
+    }
+  } catch (error) {
+    // Continue to next source
+  }
+  
+  // Try CoinGecko as fallback
+  const coingeckoUrl = `https://api.coingecko.com/api/v3/coins/monad/contract/${tokenAddress}`;
+  try {
+    const response = await fetch(coingeckoUrl);
+    if (response.ok) {
+      const data = await response.json();
+      return data.image?.large || data.image?.small || data.image?.thumb || null;
+    }
+  } catch (error) {
+    // Continue to next source
+  }
+  
+  return null;
+};
 
 export const fetchMonadTokens = async (): Promise<Token[]> => {
   // Query for Monad Testnet (143)
@@ -84,7 +133,7 @@ export const fetchMonadTokens = async (): Promise<Token[]> => {
 
     const items = result.data?.filterTokens?.results || [];
 
-    const tokens: Token[] = items
+    const tokens: Token[] = await Promise.all(items
         .filter((item: any) => {
             const t = item.token;
             if (!t || !t.symbol || !t.name) return false;
@@ -93,15 +142,14 @@ export const fetchMonadTokens = async (): Promise<Token[]> => {
             const n = t.name.toUpperCase();
             
             // STRICT FILTERING
-            const junkKeywords = ['FAUCET', 'TEST', 'MOCK', 'EXAMPLE', 'TETHER', 'USDC']; 
+            const junkKeywords = ['FAUCET', 'TEST', 'MOCK', 'EXAMPLE']; 
             if (junkKeywords.some(keyword => n.includes(keyword) || s.includes(keyword))) {
-                if (s === 'USDC' || s === 'USDT') return true; 
                 return false;
             }
 
             return true;
         })
-        .map((item: any) => {
+        .map(async (item: any) => {
             const t = item.token;
             const info = t.info || {};
             
@@ -114,8 +162,19 @@ export const fetchMonadTokens = async (): Promise<Token[]> => {
                mcap = volume * 10; 
             }
 
-            const dexscreenerImage = `https://dd.dexscreener.com/ds-data/tokens/monad/${t.address}.png`;
+            const isStable = isStableCoin(t.symbol, t.name);
             const codexImage = info.imageLargeUrl || info.imageSmallUrl || info.imageThumbUrl;
+
+            // Try to fetch token image
+            let imageUrl = codexImage;
+            try {
+              const fetchedImage = await fetchTokenImage(t.address);
+              if (fetchedImage) {
+                imageUrl = fetchedImage;
+              }
+            } catch (error) {
+              // Fallback to existing image
+            }
 
             return {
                 id: t.address,
@@ -127,12 +186,13 @@ export const fetchMonadTokens = async (): Promise<Token[]> => {
                 volume24h: volume,
                 category: guessCategory(t.symbol, t.name),
                 dominance: 0,
-                imageUrl: dexscreenerImage,
+                imageUrl: imageUrl,
                 backupImageUrl: codexImage,
                 pairUrl: `https://www.defined.fi/monad/${t.address}`,
-                chainId: 'monad'
+                chainId: 'monad',
+                isStable: isStable
             };
-        });
+        }));
     
     tokens.sort((a, b) => b.marketCap - a.marketCap);
 
