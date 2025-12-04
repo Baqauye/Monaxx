@@ -4,15 +4,16 @@ const CODEX_API_KEY = '6a28836dea12a4050f2e0256b585eef55f75aeb8';
 const GRAPHQL_ENDPOINT = 'https://graph.codex.io/graphql';
 
 export const fetchMonadTokens = async (): Promise<Token[]> => {
-  // Query specifically for Monad (Chain ID 143)
+  // Query specifically for Monad (Chain ID 143 / Testnet)
+  // Liquidity > $1000 to filter out complete garbage/spam
   const query = `
     query MonadTokens {
       filterTokens(
         filters: {
           network: [143]
-          liquidity: { gt: 5000 }
+          liquidity: { gt: 1000 }
         }
-        limit: 100
+        limit: 150
         rankings: {
           attribute: trendingScore24
           direction: DESC
@@ -60,14 +61,18 @@ export const fetchMonadTokens = async (): Promise<Token[]> => {
     const tokens: Token[] = items
         .filter((item: any) => {
             const t = item.token;
-            const s = t.symbol?.toUpperCase();
-            
-            // Exclude specific Stablecoins only
-            const EXCLUDED_SYMBOLS = new Set([
-                'USDC', 'USDT', 'DAI', 'USDE', 'FDUSD', 'FRAX', 'AUSD', 'MUSD', 'LUSD'
-            ]);
+            if (!t || !t.symbol || !t.name) return false;
 
-            if (EXCLUDED_SYMBOLS.has(s)) return false;
+            const s = t.symbol.toUpperCase();
+            const n = t.name.toUpperCase();
+            
+            // STRICT FILTERING: Remove typical spam/test tokens
+            const junkKeywords = ['FAUCET', 'TEST', 'MOCK', 'EXAMPLE', 'TETHER', 'USDC']; 
+            if (junkKeywords.some(keyword => n.includes(keyword) || s.includes(keyword))) {
+                // Allow major stablecoins if they are legit wrappers, but block generic 'Test Tether'
+                if (s === 'USDC' || s === 'USDT') return true; 
+                return false;
+            }
 
             return true;
         })
@@ -75,11 +80,22 @@ export const fetchMonadTokens = async (): Promise<Token[]> => {
             const t = item.token;
             const info = t.info || {};
             
-            // Parse strings to numbers, safe defaults
+            // Parse strings to numbers with safe fallbacks
             const price = parseFloat(item.priceUSD || '0');
             const change = parseFloat(item.change24 || '0') * 100;
-            const mcap = parseFloat(item.marketCap || '0');
+            let mcap = parseFloat(item.marketCap || '0');
             const volume = parseFloat(item.volume24 || '0');
+            
+            // Fallback for mcap if missing (often missing on testnet)
+            if (mcap === 0 && price > 0) {
+               mcap = volume * 10; // Crude estimation for visualization if mcap is missing
+            }
+
+            // Image Strategy:
+            // 1. DexScreener is often most up to date for meme coins.
+            // 2. Codex images (from the 'info' object) are the backup.
+            const dexscreenerImage = `https://dd.dexscreener.com/ds-data/tokens/monad/${t.address}.png`;
+            const codexImage = info.imageLargeUrl || info.imageSmallUrl || info.imageThumbUrl;
 
             return {
                 id: t.address,
@@ -91,8 +107,8 @@ export const fetchMonadTokens = async (): Promise<Token[]> => {
                 volume24h: volume,
                 category: guessCategory(t.symbol, t.name),
                 dominance: 0,
-                // Codex/Defined.fi images
-                imageUrl: info.imageLargeUrl || info.imageSmallUrl || info.imageThumbUrl,
+                imageUrl: dexscreenerImage,
+                backupImageUrl: codexImage,
                 pairUrl: `https://www.defined.fi/monad/${t.address}`,
                 chainId: 'monad'
             };
@@ -101,10 +117,9 @@ export const fetchMonadTokens = async (): Promise<Token[]> => {
     // Sort by Market Cap descending
     tokens.sort((a, b) => b.marketCap - a.marketCap);
 
-    const topTokens = tokens.slice(0, 80);
-
-    const totalMcap = topTokens.reduce((sum, t) => sum + t.marketCap, 0);
-    return topTokens.map(t => ({
+    // Calculate dominance
+    const totalMcap = tokens.reduce((sum, t) => sum + t.marketCap, 0);
+    return tokens.map(t => ({
         ...t,
         dominance: totalMcap > 0 ? (t.marketCap / totalMcap) * 100 : 0
     }));
@@ -116,36 +131,29 @@ export const fetchMonadTokens = async (): Promise<Token[]> => {
 };
 
 const guessCategory = (symbol: string, name: string): string => {
-   const s = symbol.toUpperCase();
-   const n = name.toUpperCase();
+   const s = (symbol || '').toUpperCase();
+   const n = (name || '').toUpperCase();
    
-   // 1. Wrapped Tokens
-   if (
-       (s.startsWith('W') && (n.includes('WRAPPED') || s === 'WMON' || s === 'WETH' || s === 'WBTC')) &&
-       s !== 'WIF' && s !== 'WEN' // Exclude common memes that start with W
-    ) {
+   if (s === 'WMON' || s === 'WETH' || s === 'WBTC' || n.includes('WRAPPED')) {
        return 'Wrapped';
    }
 
-   // 2. Staked / LSTs
    if (s.startsWith('ST') || s.startsWith('EZ') || n.includes('STAKED') || n.includes('LIQUID')) {
        return 'Staked';
    }
 
-   // 3. AI Tokens
    if (n.includes(' AI') || n.includes('GPT') || s.includes('AI') || n.includes('INTELLIGENCE') || n.includes('AGENT')) {
        return 'AI';
    }
 
-   // 4. DeFi
    if (
        n.includes('SWAP') || n.includes('DEX') || n.includes('FINANCE') || 
        n.includes('PROTOCOL') || n.includes('YIELD') || n.includes('PERP') || 
-       n.includes('DAO') || n.includes('EXCHANGE')
+       n.includes('DAO')
     ) {
        return 'DeFi';
    }
    
-   // 5. Default to Meme
+   // Default bucket for everything else on this chain
    return 'Meme'; 
 }

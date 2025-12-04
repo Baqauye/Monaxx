@@ -6,9 +6,10 @@ export interface Token {
   change24h: number;
   marketCap: number; // Used for sizing
   volume24h: number;
-  category: string; // Made generic string to accommodate dynamic categories
+  category: string; 
   dominance: number; // Calculated percentage
   imageUrl?: string;
+  backupImageUrl?: string;
   pairUrl?: string;
   chainId?: string;
 }

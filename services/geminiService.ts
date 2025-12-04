@@ -12,14 +12,15 @@ export const getMarketInsight = async (tokens: Token[]): Promise<MarketSummary> 
     const marketSnapshot = {
       gainers: topGainers.map(t => `${t.symbol} (+${t.change24h.toFixed(1)}%)`),
       losers: topLosers.map(t => `${t.symbol} (${t.change24h.toFixed(1)}%)`),
-      btc_trend: tokens.find(t => t.symbol === 'BTC')?.change24h || 0,
+      count: tokens.length
     };
 
     const prompt = `
-      Act as a witty crypto analyst. Based on this market snapshot: ${JSON.stringify(marketSnapshot)}.
+      Act as a witty crypto analyst observing the Monad Testnet ecosystem. 
+      Based on this snapshot: ${JSON.stringify(marketSnapshot)}.
       Provide a short, punchy 1-sentence headline and a brief 2-sentence insight.
       Determine if sentiment is Bullish, Bearish, or Neutral.
-      Do NOT mention that this is simulated data. Treat it as real.
+      Treat the data as real market movements.
     `;
 
     const response = await ai.models.generateContent({
@@ -47,9 +48,9 @@ export const getMarketInsight = async (tokens: Token[]): Promise<MarketSummary> 
   } catch (error) {
     console.error("Gemini Insight Error:", error);
     return {
-      headline: "Market Moves",
+      headline: "Monad Ecosystem Active",
       sentiment: "Neutral",
-      insight: "The market is fluctuating. Keep an eye on the charts for the next big move."
+      insight: "The ecosystem is evolving rapidly. Watch for new deployments and liquidity shifts."
     };
   }
 };

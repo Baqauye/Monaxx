@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Token, Mood } from '../types';
 import { PLAYFUL_COLORS, PROFESSIONAL_COLORS } from '../constants';
 
@@ -23,70 +23,103 @@ interface TokenTileProps {
   height: number;
   mood: Mood;
   onClick: (token: Token) => void;
+  dimmed?: boolean;
+  onHover?: (isHovering: boolean) => void;
 }
 
-const TokenTile: React.FC<TokenTileProps> = ({ token, width, height, mood, onClick }) => {
+const TokenTile: React.FC<TokenTileProps> = ({ token, width, height, mood, onClick, dimmed, onHover }) => {
+  const [currentImgSrc, setCurrentImgSrc] = useState<string | undefined>(token.imageUrl);
   const [imageError, setImageError] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
+  
   const isPositive = token.change24h >= 0;
   const colors = mood === 'Playful' ? PLAYFUL_COLORS : PROFESSIONAL_COLORS;
 
-  // Determine intensity of color based on change magnitude (capped at 15%)
+  // Reset image state when token changes or imageUrl prop updates
+  useEffect(() => {
+    setCurrentImgSrc(token.imageUrl);
+    setImageError(false);
+  }, [token.imageUrl, token.id]);
+
+  const handleImageError = () => {
+    // Fallback logic: Try backup -> Then fail
+    if (currentImgSrc === token.imageUrl && token.backupImageUrl) {
+      setCurrentImgSrc(token.backupImageUrl);
+    } else {
+      setImageError(true);
+    }
+  };
+
   const intensity = Math.min(Math.abs(token.change24h) / 15, 1);
   const colorIndex = intensity < 0.3 ? 0 : intensity < 0.6 ? 1 : 2;
   const bgColor = isPositive ? colors.up[colorIndex] : colors.down[colorIndex];
   
-  // Dynamic font size based on tile area
   const fontSize = Math.min(width / 5, height / 4, 24);
   const smallFontSize = Math.max(fontSize * 0.6, 10);
   
-  // Visibility thresholds
   const showText = width > 40 && height > 40;
   const showDetail = width > 80 && height > 60;
   
-  // Image size calculation
   const imgSize = Math.min(width * 0.4, height * 0.4, 60);
   const showImage = width > 50 && height > 50;
+
+  const handleMouseEnter = () => {
+    setIsHovered(true);
+    if (onHover) onHover(true);
+  };
+
+  const handleMouseLeave = () => {
+    setIsHovered(false);
+    if (onHover) onHover(false);
+  };
 
   return (
     <div
       onClick={() => onClick(token)}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
       style={{
         width: '100%',
         height: '100%',
         backgroundColor: bgColor,
         color: isPositive && mood === 'Playful' ? '#064e3b' : isPositive ? '#f0fdf4' : '#fff0f2',
+        opacity: dimmed ? 0.3 : 1,
+        filter: dimmed ? 'grayscale(0.6) blur(1px)' : 'none',
+        transform: isHovered ? 'scale(1.02)' : dimmed ? 'scale(0.95)' : 'scale(1)',
+        zIndex: isHovered ? 20 : 1,
+        transition: 'all 0.4s cubic-bezier(0.2, 0.8, 0.2, 1)'
       }}
       className={`
-        relative overflow-hidden cursor-pointer transition-all duration-300 hover:brightness-110 hover:z-10 hover:shadow-lg group
+        relative overflow-hidden cursor-pointer shadow-sm
         ${mood === 'Playful' ? 'rounded-2xl border-4 border-white/20' : 'rounded-none border border-black/10'}
         flex flex-col items-center justify-center text-center p-1
+        ${!dimmed ? 'hover:shadow-2xl' : ''}
       `}
     >
-      {/* Background Watermark (Image Only, No Emoji) */}
+      {/* Background Watermark */}
       <div className="absolute pointer-events-none top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 transition-transform duration-500 group-hover:scale-110 opacity-10 mix-blend-overlay">
-        {token.imageUrl && !imageError ? (
+        {currentImgSrc && !imageError ? (
             <img 
-              src={token.imageUrl} 
+              src={currentImgSrc} 
               alt="" 
               className="w-32 h-32 object-cover grayscale blur-sm" 
-              onError={() => setImageError(true)}
+              onError={handleImageError}
             />
         ) : (
-            // Abstract shape fallback
             <div className="w-24 h-24 rounded-full bg-white/20" />
         )}
       </div>
 
-      {/* Main Token Image */}
+      {/* Main Image */}
       {showImage && (
-        <div className="mb-1 relative z-10">
-            {token.imageUrl && !imageError ? (
+        <div className="mb-1 relative z-10 transition-transform duration-300" style={{ transform: isHovered ? 'scale(1.1)' : 'scale(1)' }}>
+            {currentImgSrc && !imageError ? (
                 <img 
-                    src={token.imageUrl} 
+                    src={currentImgSrc} 
                     alt={token.symbol}
                     style={{ width: imgSize, height: imgSize }}
                     className={`object-cover shadow-sm bg-white/10 ${mood === 'Playful' ? 'rounded-full border-2 border-white/40' : 'rounded-md'}`}
-                    onError={() => setImageError(true)}
+                    onError={handleImageError}
                 />
             ) : (
                 <div 

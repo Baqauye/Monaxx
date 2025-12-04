@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Token, Mood } from '../types';
 import { formatCompactNumber } from '../utils';
 
@@ -19,24 +19,28 @@ interface DetailModalProps {
   mood: Mood;
 }
 
-// Generate fake chart data
-const generateChartData = (currentPrice: number, change: number) => {
-  const data = [];
-  let price = currentPrice * (1 - change / 100);
-  for (let i = 0; i < 24; i++) {
-    price = price * (1 + (Math.random() * 0.04 - 0.02));
-    data.push({ time: i, price });
-  }
-  data.push({ time: 24, price: currentPrice });
-  return data;
-};
-
 const DetailModal: React.FC<DetailModalProps> = ({ token, onClose, mood }) => {
+  const [currentImgSrc, setCurrentImgSrc] = useState<string | undefined>(token?.imageUrl);
+  const [imageError, setImageError] = useState(false);
+
+  useEffect(() => {
+    if (token) {
+        setCurrentImgSrc(token.imageUrl);
+        setImageError(false);
+    }
+  }, [token]);
+
   if (!token) return null;
 
-  const chartData = generateChartData(token.price, token.change24h);
+  const handleImageError = () => {
+    if (currentImgSrc === token.imageUrl && token.backupImageUrl) {
+        setCurrentImgSrc(token.backupImageUrl);
+    } else {
+        setImageError(true);
+    }
+  };
+
   const isPositive = token.change24h >= 0;
-  const color = isPositive ? '#10b981' : '#ef4444';
 
   const overlayClass = mood === 'Playful' 
     ? 'bg-black/20 backdrop-blur-sm' 
@@ -53,24 +57,6 @@ const DetailModal: React.FC<DetailModalProps> = ({ token, onClose, mood }) => {
       return p.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
 
-  // --- Simple SVG Chart Logic ---
-  const minPrice = Math.min(...chartData.map(d => d.price));
-  const maxPrice = Math.max(...chartData.map(d => d.price));
-  const priceRange = maxPrice - minPrice || 1; // avoid divide by zero
-
-  // Map data to 0-100 coordinates
-  // X: 0 to 100
-  // Y: 100 to 0 (SVG y=0 is top)
-  const points = chartData.map((d, i) => {
-    const x = (i / (chartData.length - 1)) * 100;
-    const normalizedPrice = (d.price - minPrice) / priceRange;
-    const y = 100 - (normalizedPrice * 80 + 10); // keep within 10%-90% vertical area
-    return `${x},${y}`;
-  }).join(' ');
-
-  const areaPath = `M0,100 ${points.split(' ').map((p, i) => `L${p}`).join(' ')} L100,100 Z`;
-  const linePath = `M${points.split(' ').map((p, i) => i === 0 ? p : `L${p}`).join(' ')}`;
-
   return (
     <div className={`fixed inset-0 z-50 flex items-center justify-center p-4 ${overlayClass}`} onClick={onClose}>
       <div 
@@ -80,11 +66,12 @@ const DetailModal: React.FC<DetailModalProps> = ({ token, onClose, mood }) => {
         {/* Header */}
         <div className="p-6 flex justify-between items-start">
           <div className="flex items-start gap-4">
-             {token.imageUrl && (
+             {currentImgSrc && !imageError && (
                  <img 
-                    src={token.imageUrl} 
+                    src={currentImgSrc} 
                     alt={token.name} 
                     className={`w-16 h-16 object-cover shadow-md ${mood === 'Playful' ? 'rounded-2xl' : 'rounded-full border border-white/10'}`} 
+                    onError={handleImageError}
                  />
              )}
              <div>
@@ -112,29 +99,16 @@ const DetailModal: React.FC<DetailModalProps> = ({ token, onClose, mood }) => {
           </button>
         </div>
 
-        {/* Price & Chart */}
-        <div className="px-6 pb-2">
+        {/* Price */}
+        <div className="px-6 pb-6">
             <div className="flex items-baseline gap-3">
-              <span className={`text-4xl font-mono font-medium ${mood === 'Playful' ? 'text-slate-700' : 'text-white'}`}>
+              <span className={`text-5xl font-mono font-medium ${mood === 'Playful' ? 'text-slate-700' : 'text-white'}`}>
                 ${formatPrice(token.price)}
               </span>
-              <span className={`text-xl font-bold px-2 py-1 rounded ${isPositive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+              <span className={`text-2xl font-bold px-2 py-1 rounded ${isPositive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                 {isPositive ? '+' : ''}{token.change24h.toFixed(2)}%
               </span>
             </div>
-        </div>
-
-        <div className="h-48 w-full mt-2 relative overflow-hidden">
-           <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="w-full h-full">
-              <defs>
-                 <linearGradient id="chartGradient" x1="0" x2="0" y1="0" y2="1">
-                    <stop offset="0%" stopColor={color} stopOpacity="0.3" />
-                    <stop offset="100%" stopColor={color} stopOpacity="0" />
-                 </linearGradient>
-              </defs>
-              <path d={areaPath} fill="url(#chartGradient)" />
-              <path d={linePath} fill="none" stroke={color} strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinecap="round" strokeLinejoin="round" />
-           </svg>
         </div>
 
         {/* Stats Grid */}
@@ -159,7 +133,7 @@ const DetailModal: React.FC<DetailModalProps> = ({ token, onClose, mood }) => {
               href={token.pairUrl}
               target="_blank"
               rel="noreferrer"
-              className={`flex-1 flex items-center justify-center gap-2 py-3 font-bold transition-transform active:scale-95 no-underline ${
+              className={`flex-1 flex items-center justify-center gap-2 py-4 font-bold transition-transform active:scale-95 no-underline ${
               mood === 'Playful' 
                 ? 'bg-black text-white rounded-xl shadow-lg hover:-translate-y-1' 
                 : 'bg-indigo-600 text-white rounded-none hover:bg-indigo-500'
