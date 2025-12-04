@@ -1,3 +1,4 @@
+// components/HolderMap.tsx
 import React, { useEffect, useRef, useState } from 'react';
 import * as d3 from 'd3';
 import { Holder, Mood } from '../types';
@@ -18,12 +19,11 @@ const HolderMap: React.FC<HolderMapProps> = ({ tokenAddress, width, height, mood
 
   useEffect(() => {
     if (!tokenAddress) return;
-
     const loadData = async () => {
       setLoading(true);
       setError(null);
       setData([]);
-      
+
       try {
         const holders = await fetchTokenHolders(tokenAddress);
         setData(holders);
@@ -34,22 +34,21 @@ const HolderMap: React.FC<HolderMapProps> = ({ tokenAddress, width, height, mood
         setLoading(false);
       }
     };
-
     loadData();
   }, [tokenAddress]);
 
   useEffect(() => {
     if (!data.length || !svgRef.current) return;
-
     const svg = d3.select(svgRef.current);
-    svg.selectAll("*").remove(); 
+    svg.selectAll("*").remove();
 
     const colorScale = d3.scaleOrdinal(
-      mood === 'Playful' 
-        ? ['#f472b6', '#c084fc', '#818cf8', '#22d3ee', '#34d399'] 
+      mood === 'Playful'
+        ? ['#f472b6', '#c084fc', '#818cf8', '#22d3ee', '#34d399']
         : ['#3b82f6', '#8b5cf6', '#ec4899', '#10b981', '#f59e0b']
     );
 
+    // Create nodes with properties for D3 simulation
     const nodes = data.map(d => ({
       ...d,
       r: Math.max(Math.sqrt(d.percentage) * (width < 600 ? 15 : 25), 4),
@@ -57,18 +56,20 @@ const HolderMap: React.FC<HolderMapProps> = ({ tokenAddress, width, height, mood
       y: height / 2 + (Math.random() - 0.5) * 50
     }));
 
+    // Create links between connected holders
     const links: any[] = [];
     nodes.forEach((source: any) => {
-        if (source.connections) {
-            source.connections.forEach((targetId: string) => {
-                const target = nodes.find((n: any) => n.address === targetId);
-                if (target) {
-                    links.push({ source, target });
-                }
-            });
-        }
+      if (source.connections) {
+        source.connections.forEach((targetId: string) => {
+          const target = nodes.find((n: any) => n.address === targetId);
+          if (target) {
+            links.push({ source, target });
+          }
+        });
+      }
     });
 
+    // Set up D3 force simulation
     const simulation = d3.forceSimulation(nodes as any)
       .force("charge", d3.forceManyBody().strength(-20))
       .force("center", d3.forceCenter(width / 2, height / 2))
@@ -77,14 +78,16 @@ const HolderMap: React.FC<HolderMapProps> = ({ tokenAddress, width, height, mood
       .force("x", d3.forceX(width / 2).strength(0.05))
       .force("y", d3.forceY(height / 2).strength(0.05));
 
+    // Draw links
     const link = svg.append("g")
-        .attr("stroke", mood === 'Playful' ? "#cbd5e1" : "#334155")
-        .attr("stroke-opacity", 0.6)
-        .selectAll("line")
-        .data(links)
-        .join("line")
-        .attr("stroke-width", 1);
+      .attr("stroke", mood === 'Playful' ? "#cbd5e1" : "#334155")
+      .attr("stroke-opacity", 0.6)
+      .selectAll("line")
+      .data(links)
+      .join("line")
+      .attr("stroke-width", 1);
 
+    // Draw nodes
     const node = svg.append("g")
       .selectAll("g")
       .data(nodes)
@@ -106,6 +109,7 @@ const HolderMap: React.FC<HolderMapProps> = ({ tokenAddress, width, height, mood
         })
       );
 
+    // Draw circles for nodes
     node.append("circle")
       .attr("r", (d: any) => d.r)
       .attr("fill", (d: any) => d.isContract ? (mood === 'Playful' ? '#fbbf24' : '#f59e0b') : colorScale(d.address))
@@ -114,6 +118,7 @@ const HolderMap: React.FC<HolderMapProps> = ({ tokenAddress, width, height, mood
       .attr("stroke-opacity", 0.5)
       .style("filter", mood === 'Professional' ? "drop-shadow(0 0 4px rgba(255,255,255,0.2))" : "none");
 
+    // Add labels for large nodes or labeled nodes
     node.filter((d: any) => d.r > 20 || d.label)
       .append("text")
       .text((d: any) => d.label || `${d.percentage.toFixed(1)}%`)
@@ -124,16 +129,17 @@ const HolderMap: React.FC<HolderMapProps> = ({ tokenAddress, width, height, mood
       .attr("font-weight", "bold")
       .attr("pointer-events", "none");
 
+    // Add tooltips
     node.append("title")
       .text((d: any) => `${d.label ? d.label + '\n' : ''}${d.address}\nBalance: ${d.balance.toLocaleString()} (${d.percentage.toFixed(2)}%)`);
 
+    // Update positions on each tick
     simulation.on("tick", () => {
       link
         .attr("x1", (d: any) => d.source.x)
         .attr("y1", (d: any) => d.source.y)
         .attr("x2", (d: any) => d.target.x)
         .attr("y2", (d: any) => d.target.y);
-
       node
         .attr("transform", (d: any) => `translate(${d.x},${d.y})`);
     });
@@ -144,44 +150,44 @@ const HolderMap: React.FC<HolderMapProps> = ({ tokenAddress, width, height, mood
   }, [data, width, height, mood]);
 
   if (loading) {
-      return (
-          <div className="w-full h-full flex flex-col items-center justify-center">
-              <div className={`w-12 h-12 rounded-full border-4 border-t-transparent animate-spin ${mood === 'Playful' ? 'border-indigo-500' : 'border-purple-500'}`}></div>
-              <div className="mt-4 opacity-60 font-mono">Scanning Ledger...</div>
-          </div>
-      );
+    return (
+      <div className="w-full h-full flex flex-col items-center justify-center">
+        <div className={`w-12 h-12 rounded-full border-4 border-t-transparent animate-spin ${mood === 'Playful' ? 'border-indigo-500' : 'border-purple-500'}`}></div>
+        <div className="mt-4 opacity-60 font-mono">Scanning Ledger...</div>
+      </div>
+    );
   }
 
   if (error) {
-      return (
-          <div className="w-full h-full flex items-center justify-center text-red-500 font-bold">
-              {error}
-          </div>
-      );
+    return (
+      <div className="w-full h-full flex items-center justify-center text-red-500 font-bold">
+        {error}
+      </div>
+    );
   }
 
   if (!tokenAddress) {
-      return (
-          <div className="w-full h-full flex flex-col items-center justify-center opacity-50">
-              <div className="text-6xl mb-4">🔍</div>
-              <div className="text-xl font-bold">Enter a Contract Address</div>
-              <div>Visualize holder distribution instantly</div>
-          </div>
-      );
+    return (
+      <div className="w-full h-full flex flex-col items-center justify-center opacity-50">
+        <div className="text-6xl mb-4">🔍</div>
+        <div className="text-xl font-bold">Enter a Contract Address</div>
+        <div>Visualize holder distribution instantly</div>
+      </div>
+    );
   }
 
   return (
     <div className="w-full h-full overflow-hidden relative">
-        <svg 
-            ref={svgRef} 
-            width={width} 
-            height={height} 
-            viewBox={`0 0 ${width} ${height}`}
-            className="w-full h-full cursor-grab active:cursor-grabbing"
-        />
-        <div className="absolute bottom-4 right-4 bg-black/50 text-white text-xs p-2 rounded backdrop-blur-md">
-            Top 100 Holders (Simulated)
-        </div>
+      <svg
+        ref={svgRef}
+        width={width}
+        height={height}
+        viewBox={`0 0 ${width} ${height}`}
+        className="w-full h-full cursor-grab active:cursor-grabbing"
+      />
+      <div className="absolute bottom-4 right-4 bg-black/50 text-white text-xs p-2 rounded backdrop-blur-md">
+        Top 100 Holders (Live Data)
+      </div>
     </div>
   );
 };
