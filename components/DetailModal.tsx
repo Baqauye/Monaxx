@@ -2,14 +2,25 @@ import React, { useState, useEffect } from 'react';
 import { Token, Mood } from '../types';
 import { formatCompactNumber } from '../utils';
 
-const XIcon = ({ size = 24 }: { size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+const XIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="18" y1="6" x2="6" y2="18"></line>
+    <line x1="6" y1="6" x2="18" y2="18"></line>
+  </svg>
 );
-const GlobeIcon = ({ size = 24 }: { size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+
+const GlobeIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10"></circle>
+    <line x1="2" y1="12" x2="22" y2="12"></line>
+    <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+  </svg>
 );
-const ActivityIcon = ({ size = 24 }: { size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+
+const ActivityIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+  </svg>
 );
 
 interface DetailModalProps {
@@ -93,7 +104,7 @@ const DetailModal: React.FC<DetailModalProps> = ({ token, onClose, mood }) => {
             onClick={onClose} 
             className="p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
           >
-            <XIcon size={24} />
+            <XIcon />
           </button>
         </div>
 
@@ -133,14 +144,14 @@ const DetailModal: React.FC<DetailModalProps> = ({ token, onClose, mood }) => {
                 ? 'bg-black text-white rounded-xl shadow-lg hover:-translate-y-1' 
                 : 'bg-indigo-600 text-white rounded-none hover:bg-indigo-500'
             }`}>
-              <ActivityIcon size={18} /> View on Defined.fi
+              <ActivityIcon /> View on Defined.fi
             </a>
             <button className={`p-3 transition-colors ${
               mood === 'Playful' 
                 ? 'bg-gray-100 rounded-xl hover:bg-gray-200 text-gray-600' 
                 : 'bg-slate-800 rounded-none hover:bg-slate-700 text-slate-300'
             }`}>
-              <GlobeIcon size={20} />
+              <GlobeIcon />
             </button>
         </div>
       </div>
