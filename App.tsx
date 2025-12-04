@@ -1,3 +1,4 @@
+// App.tsx
 import React, { useState, useEffect, useRef } from 'react';
 import { PLAYFUL_COLORS, PROFESSIONAL_COLORS } from './constants';
 import { Token, Mood, ViewMode } from './types';
@@ -61,10 +62,9 @@ const App: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const [isDataLoading, setIsDataLoading] = useState(true);
-  
+
   const [searchAddress, setSearchAddress] = useState('');
   const [activeAddress, setActiveAddress] = useState('');
-
   const containerRef = useRef<HTMLDivElement>(null);
   const themeColors = mood === 'Playful' ? PLAYFUL_COLORS : PROFESSIONAL_COLORS;
 
@@ -77,30 +77,28 @@ const App: React.FC = () => {
         });
       }
     };
-
     window.addEventListener('resize', handleResize);
     handleResize();
-
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   const loadMarketData = async () => {
     setIsDataLoading(true);
     try {
-        const liveTokens = await fetchMonadTokens();
-        if (liveTokens) {
-            setTokens(liveTokens);
-        }
+      const liveTokens = await fetchMonadTokens();
+      if (liveTokens) {
+        setTokens(liveTokens);
+      }
     } catch (e) {
-        console.error("Failed to load market data", e);
+      console.error("Failed to load market data", e);
     } finally {
-        setIsDataLoading(false);
+      setIsDataLoading(false);
     }
   };
 
   useEffect(() => {
     loadMarketData();
-    const interval = setInterval(loadMarketData, 60000); 
+    const interval = setInterval(loadMarketData, 60000);
     return () => clearInterval(interval);
   }, []);
 
@@ -123,15 +121,15 @@ const App: React.FC = () => {
   }, [mood, themeColors]);
 
   const handleSearch = (e: React.FormEvent) => {
-      e.preventDefault();
-      if (searchAddress.trim().length > 10) {
-          setActiveAddress(searchAddress.trim());
-      }
+    e.preventDefault();
+    if (searchAddress.trim().length > 10) {
+      setActiveAddress(searchAddress.trim());
+    }
   };
 
   return (
     <div className={`min-h-screen flex flex-col transition-colors duration-500 font-sans ${mood === 'Professional' ? 'dark' : ''}`}>
-      
+
       <header className={`sticky top-0 z-40 backdrop-blur-md border-b transition-colors duration-500 ${
         mood === 'Playful' ? 'bg-white/70 border-gray-200' : 'bg-slate-900/80 border-slate-800'
       }`}>
@@ -142,55 +140,52 @@ const App: React.FC = () => {
             </div>
             <h1 className={`text-2xl font-bold tracking-tight ${mood === 'Playful' ? 'font-display' : 'font-mono'}`}>
               Monax
-              <span className="text-xs ml-2 opacity-50 font-normal border border-current px-1.5 py-0.5 rounded">for Monad</span>
+              <span className="text-xs ml-2 opacity-50 font-normal border border-current px-1.5 py-0.5 rounded">Monad Eco</span>
             </h1>
           </div>
-
           <div className="hidden md:flex flex-1 mx-8 items-center justify-center">
             {viewMode === 'TreeMap' && (
-                <div className="text-sm opacity-50">
-                    Live market data
-                </div>
+              <div className="text-sm opacity-50">
+                Live market data
+              </div>
             )}
-            
+
             {viewMode === 'BubbleMap' && (
-                <form onSubmit={handleSearch} className="w-full max-w-md flex items-center">
-                    <input 
-                        type="text" 
-                        placeholder="Enter Monad Contract Address (0x...)"
-                        value={searchAddress}
-                        onChange={(e) => setSearchAddress(e.target.value)}
-                        className={`w-full px-4 py-2 rounded-l-lg border-y border-l focus:outline-none ${mood === 'Playful' ? 'bg-white border-gray-200' : 'bg-slate-900 border-slate-700 text-white'}`}
-                    />
-                    <button 
-                        type="submit"
-                        className="px-4 py-2 rounded-r-lg bg-indigo-600 text-white font-medium hover:bg-indigo-700 transition-colors"
-                    >
-                        Scan
-                    </button>
-                </form>
+              <form onSubmit={handleSearch} className="w-full max-w-md flex items-center">
+                <input
+                  type="text"
+                  placeholder="Enter Monad Contract Address (0x...)"
+                  value={searchAddress}
+                  onChange={(e) => setSearchAddress(e.target.value)}
+                  className={`w-full px-4 py-2 rounded-l-lg border-y border-l focus:outline-none ${mood === 'Playful' ? 'bg-white border-gray-200' : 'bg-slate-900 border-slate-700 text-white'}`}
+                />
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-r-lg bg-indigo-600 text-white font-medium hover:bg-indigo-700 transition-colors"
+                >
+                  Scan
+                </button>
+              </form>
             )}
           </div>
-
           <div className="flex items-center gap-2">
-            <button 
+            <button
               onClick={() => setViewMode(v => v === 'TreeMap' ? 'BubbleMap' : 'TreeMap')}
               className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-bold transition-all ${
-                 viewMode === 'BubbleMap' 
-                 ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' 
-                 : 'hover:bg-black/5 dark:hover:bg-white/5 opacity-70'
+                viewMode === 'BubbleMap'
+                  ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300'
+                  : 'hover:bg-black/5 dark:hover:bg-white/5 opacity-70'
               }`}
               title="Toggle View Mode"
             >
-                <NetworkIcon />
-                <span className="hidden sm:inline">{viewMode === 'TreeMap' ? 'Market Map' : 'Holder Map'}</span>
+              <NetworkIcon />
+              <span className="hidden sm:inline">{viewMode === 'TreeMap' ? 'Market Map' : 'Holder Map'}</span>
             </button>
-
-            <button 
+            <button
               onClick={() => setMood(m => m === 'Playful' ? 'Professional' : 'Playful')}
               className={`p-2 rounded-full transition-all ${
-                mood === 'Playful' 
-                  ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' 
+                mood === 'Playful'
+                  ? 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                   : 'bg-slate-800 text-yellow-400 hover:bg-slate-700'
               }`}
             >
@@ -199,104 +194,99 @@ const App: React.FC = () => {
           </div>
         </div>
       </header>
-
       <main className="flex-1 p-2 sm:p-4 md:p-6 max-w-[1600px] w-full mx-auto flex flex-col gap-4">
-        
+
         {viewMode === 'BubbleMap' && (
-             <div className="md:hidden mb-4">
-                <form onSubmit={handleSearch} className="w-full flex items-center">
-                    <input 
-                        type="text" 
-                        placeholder="Contract Address"
-                        value={searchAddress}
-                        onChange={(e) => setSearchAddress(e.target.value)}
-                        className={`flex-1 px-4 py-2 rounded-l-lg border focus:outline-none ${mood === 'Playful' ? 'bg-white border-gray-200' : 'bg-slate-900 border-slate-700'}`}
-                    />
-                    <button type="submit" className="px-4 py-2 rounded-r-lg bg-indigo-600 text-white">Scan</button>
-                </form>
-             </div>
+          <div className="md:hidden mb-4">
+            <form onSubmit={handleSearch} className="w-full flex items-center">
+              <input
+                type="text"
+                placeholder="Contract Address"
+                value={searchAddress}
+                onChange={(e) => setSearchAddress(e.target.value)}
+                className={`flex-1 px-4 py-2 rounded-l-lg border focus:outline-none ${mood === 'Playful' ? 'bg-white border-gray-200' : 'bg-slate-900 border-slate-700'}`}
+              />
+              <button type="submit" className="px-4 py-2 rounded-r-lg bg-indigo-600 text-white">Scan</button>
+            </form>
+          </div>
         )}
-
         <div className="flex items-center justify-between px-2">
-            <h2 className="text-sm font-bold opacity-70 uppercase tracking-wider">
-                {viewMode === 'TreeMap' ? 'Top Tokens by Market Cap' : 'Token Holder Distribution'}
-            </h2>
-            <div className="flex items-center gap-2 text-xs">
-                 <span className={`w-2 h-2 rounded-full ${isDataLoading ? 'bg-yellow-500 animate-pulse' : 'bg-green-500'}`}></span>
-                 {isDataLoading ? 'Updating...' : 'Live Data'}
-            </div>
+          <h2 className="text-sm font-bold opacity-70 uppercase tracking-wider">
+            {viewMode === 'TreeMap' ? 'Top Tokens by Market Cap' : 'Token Holder Distribution'}
+          </h2>
+          <div className="flex items-center gap-2 text-xs">
+            <span className={`w-2 h-2 rounded-full ${isDataLoading ? 'bg-yellow-500 animate-pulse' : 'bg-green-500'}`}></span>
+            {isDataLoading ? 'Updating...' : 'Live Data'}
+          </div>
         </div>
-
-        <div 
-          ref={containerRef} 
+        <div
+          ref={containerRef}
           className="flex-1 min-h-[500px] w-full rounded-2xl overflow-hidden relative transition-all duration-500 flex items-center justify-center border border-black/5 dark:border-white/5"
-          style={{ 
+          style={{
             boxShadow: mood === 'Playful' ? '0 20px 40px -10px rgba(0,0,0,0.05)' : 'none',
             backgroundColor: mood === 'Playful' ? 'rgba(255,255,255,0.6)' : 'rgba(15, 23, 42, 0.6)'
           }}
         >
           {viewMode === 'TreeMap' ? (
             isDataLoading && tokens.length === 0 ? (
-                <div className="flex flex-col items-center gap-4 animate-fade-in">
-                    <div className={`w-12 h-12 rounded-full border-4 border-t-transparent animate-spin ${mood === 'Playful' ? 'border-indigo-500' : 'border-purple-500'}`}></div>
-                    <div className="text-lg font-medium opacity-60">Scanning Monad Chain...</div>
-                </div>
+              <div className="flex flex-col items-center gap-4 animate-fade-in">
+                <div className={`w-12 h-12 rounded-full border-4 border-t-transparent animate-spin ${mood === 'Playful' ? 'border-indigo-500' : 'border-purple-500'}`}></div>
+                <div className="text-lg font-medium opacity-60">Scanning Monad Chain...</div>
+              </div>
             ) : tokens.length === 0 ? (
-                <div className="text-center opacity-60 p-8">
-                    <p className="mb-4">No tokens found matching current criteria.</p>
-                    <button 
-                    onClick={loadMarketData} 
-                    className="px-4 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition"
-                    >
-                    Retry Fetch
-                    </button>
-                </div>
+              <div className="text-center opacity-60 p-8">
+                <p className="mb-4">No tokens found matching current criteria.</p>
+                <button
+                  onClick={loadMarketData}
+                  className="px-4 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition"
+                >
+                  Retry Fetch
+                </button>
+              </div>
             ) : (
-                dimensions.width > 0 && dimensions.height > 0 && (
-                    <Treemap
-                        data={filteredTokens}
-                        width={dimensions.width}
-                        height={dimensions.height}
-                        mood={mood}
-                        onTileClick={setSelectedToken}
-                        selectedId={selectedToken?.id}
-                    />
-                )
+              dimensions.width > 0 && dimensions.height > 0 && (
+                <Treemap
+                  data={filteredTokens}
+                  width={dimensions.width}
+                  height={dimensions.height}
+                  mood={mood}
+                  onTileClick={setSelectedToken}
+                  selectedId={selectedToken?.id}
+                />
+              )
             )
           ) : (
             dimensions.width > 0 && dimensions.height > 0 && (
-                <HolderMap 
-                    tokenAddress={activeAddress}
-                    width={dimensions.width} 
-                    height={dimensions.height} 
-                    mood={mood} 
-                />
+              <HolderMap
+                tokenAddress={activeAddress}
+                width={dimensions.width}
+                height={dimensions.height}
+                mood={mood}
+              />
             )
           )}
         </div>
-
         {viewMode === 'TreeMap' && (
-            <div className="flex flex-wrap justify-center gap-2 pb-8">
-                {['All', 'Meme', 'AI', 'DeFi', 'Staked', 'Wrapped'].map(cat => (
-                    <button 
-                        key={cat}
-                        onClick={() => setSelectedCategory(cat)}
-                        className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
-                            selectedCategory === cat
-                                ? (mood === 'Playful' ? 'bg-slate-900 text-white shadow-lg scale-105' : 'bg-indigo-600 text-white shadow-lg scale-105')
-                                : (mood === 'Playful' ? 'bg-white hover:bg-gray-50 shadow-sm text-slate-600' : 'bg-slate-800 hover:bg-slate-700 text-slate-300')
-                        }`}
-                    >
-                        {cat}
-                    </button>
-                ))}
-            </div>
+          <div className="flex flex-wrap justify-center gap-2 pb-8">
+            {['All', 'Stable', 'Meme', 'AI', 'DeFi', 'Staked', 'Wrapped'].map(cat => (
+              <button
+                key={cat}
+                onClick={() => setSelectedCategory(cat)}
+                className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                  selectedCategory === cat
+                    ? (mood === 'Playful' ? 'bg-slate-900 text-white shadow-lg scale-105' : 'bg-indigo-600 text-white shadow-lg scale-105')
+                    : (mood === 'Playful' ? 'bg-white hover:bg-gray-50 shadow-sm text-slate-600' : 'bg-slate-800 hover:bg-slate-700 text-slate-300')
+                }`}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
         )}
       </main>
-
-      <DetailModal 
-        token={selectedToken} 
-        onClose={() => setSelectedToken(null)} 
+      <DetailModal
+        token={selectedToken}
+        onClose={() => setSelectedToken(null)}
         mood={mood}
       />
     </div>
