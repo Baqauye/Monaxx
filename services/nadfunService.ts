@@ -1,5 +1,5 @@
 // services/nadfunService.ts
-import { NadFunToken } from '../types';
+import { Token } from '../types'; // Use the existing Token interface
 import { ethers } from 'ethers'; // Make sure ethers is installed: npm install ethers
 
 // --- Configuration ---
@@ -26,11 +26,11 @@ const BONDING_CURVE_ROUTER_ABI = [
 ];
 
 // RPC URL for Monad Mainnet
-const MONAD_RPC_URL = 'https://rpc1.monad.xyz '; // Or another reliable one from your list
+const MONAD_RPC_URL = 'https://rpc1.monad.xyz'; // Or another reliable one from your list
 
 let provider: ethers.JsonRpcProvider | null = null;
 let contract: ethers.Contract | null = null;
-let eventListenersSet = false;
+let eventListenersSet = false; // Flag to prevent duplicate listeners
 
 // Initialize provider and contract
 const initializeProviderAndContract = (): { provider: ethers.JsonRpcProvider, contract: ethers.Contract } => {
@@ -48,7 +48,7 @@ const initializeProviderAndContract = (): { provider: ethers.JsonRpcProvider, co
  * @param onNewToken Callback function called when a new token is detected.
  * @returns Function to stop listening.
  */
-export const startListeningForNewTokens = (onNewToken: (token: NadFunToken) => void): (() => void) => {
+export const startListeningForNewTokens = (onNewToken: (token: Token) => void): (() => void) => {
   const { contract } = initializeProviderAndContract();
 
   if (eventListenersSet) {
@@ -59,27 +59,23 @@ export const startListeningForNewTokens = (onNewToken: (token: NadFunToken) => v
 
   const listener = async (creator: string, tokenAddress: string, pool: string, name: string, symbol: string, tokenURI: string, vMonReserve: bigint, vTokenReserve: bigint, targetAmount: bigint) => {
     console.log(`New Nad.fun token created: ${name} (${symbol}) at ${tokenAddress}`);
-    const newToken: NadFunToken = {
+    // Create a minimal Token object based on the event data
+    // Prices, volume, market cap are initially unknown or zero
+    const newToken: Token = {
       id: tokenAddress,
       name: name,
       symbol: symbol,
-      tokenURI: tokenURI,
-      creator: creator,
-      pool: pool,
-      virtualMonReserve: Number(vMonReserve),
-      virtualTokenReserve: Number(vTokenReserve),
-      targetTokenAmount: Number(targetAmount),
-      timestamp: Date.now(), // Approximate timestamp when detected by our listener
-      imageUrl: '', // Will attempt to fetch from tokenURI
-      // These will be populated later as the token trades
-      price: 0,
-      change24h: 0,
-      marketCap: 0,
-      volume24h: 0,
+      price: 0, // Initial price is unknown
+      change24h: 0, // No change yet
+      marketCap: 0, // No market cap initially
+      volume24h: 0, // No volume initially
       category: 'NadFun', // Specific category for Nad.fun tokens
-      dominance: 0,
-      isStable: false,
-      score: 0 // Score will be calculated upon receiving trading data updates
+      dominance: 0, // Will be calculated later
+      imageUrl: '', // Will attempt to fetch from tokenURI
+      backupImageUrl: undefined,
+      pairUrl: `https://nad.fun/token/${tokenAddress}`, // Example link
+      chainId: 'monad', // Assuming Monad
+      isStable: false, // Nad.fun tokens are not stablecoins
     };
 
     // Attempt to fetch image URL from tokenURI if possible (often it's a JSON file)
@@ -89,13 +85,13 @@ export const startListeningForNewTokens = (onNewToken: (token: NadFunToken) => v
             if (metadataResponse.ok) {
                 const metadata = await metadataResponse.json();
                 if (metadata.image) {
-                    newToken.imageUrl = metadata.image.replace(/^ipfs:\/\//, 'https://ipfs.io/ipfs/ ');
+                    newToken.imageUrl = metadata.image.replace(/^ipfs:\/\//, 'https://ipfs.io/ipfs/');
                 }
             }
         } catch (error) {
              console.warn(`Could not fetch metadata for ${tokenAddress} from ${tokenURI}`, error);
              // Fallback to a standard Nad.fun icon if metadata fails
-             // newToken.imageUrl = 'https://your-domain.com/path-to-nadfun-icon.png ';
+             // newToken.imageUrl = 'https://your-domain.com/path-to-nadfun-icon.png';
         }
     }
 
@@ -121,7 +117,7 @@ export const startListeningForNewTokens = (onNewToken: (token: NadFunToken) => v
  * Fetches recent Nad.fun token creations using logs (can be used for initial load or backup).
  * This might require paginated calls depending on the number of logs.
  */
-export const fetchRecentNadFunTokens = async (limit: number = 50): Promise<NadFunToken[]> => {
+export const fetchRecentNadFunTokens = async (limit: number = 50): Promise<Token[]> => {
   const { provider } = initializeProviderAndContract();
   const iface = new ethers.Interface(BONDING_CURVE_ROUTER_ABI);
   const filter = iface.encodeFilterTopics('CurveCreate', []);
@@ -139,50 +135,46 @@ export const fetchRecentNadFunTokens = async (limit: number = 50): Promise<NadFu
       toBlock: 'latest',
     });
 
-    const tokens: NadFunToken[] = [];
+    const tokens: Token[] = [];
     for (const log of logs.slice(-limit)) { // Take the last 'limit' logs
       const parsedLog = iface.parseLog(log);
       if (parsedLog) {
         const args = parsedLog.args;
-        const token: NadFunToken = {
+        const token: Token = {
           id: args.token,
           name: args.name,
           symbol: args.symbol,
-          tokenURI: args.tokenURI,
-          creator: args.creator,
-          pool: args.pool,
-          virtualMonReserve: Number(args.virtualMonReserve),
-          virtualTokenReserve: Number(args.virtualTokenReserve),
-          targetTokenAmount: Number(args.targetTokenAmount),
-          timestamp: Date.now(), // Approximate for logs fetched now
-          imageUrl: '',
           price: 0,
           change24h: 0,
           marketCap: 0,
           volume24h: 0,
           category: 'NadFun',
           dominance: 0,
+          imageUrl: '',
+          backupImageUrl: undefined,
+          pairUrl: `https://nad.fun/token/${args.token}`,
+          chainId: 'monad',
           isStable: false,
-          score: 0
         };
-         if (token.tokenURI && token.tokenURI.startsWith('http')) {
+         if (args.tokenURI && args.tokenURI.startsWith('http')) {
             try {
-                const metadataResponse = await fetch(token.tokenURI);
+                const metadataResponse = await fetch(args.tokenURI);
                 if (metadataResponse.ok) {
                     const metadata = await metadataResponse.json();
                     if (metadata.image) {
-                        token.imageUrl = metadata.image.replace(/^ipfs:\/\//, 'https://ipfs.io/ipfs/ ');
+                        token.imageUrl = metadata.image.replace(/^ipfs:\/\//, 'https://ipfs.io/ipfs/');
                     }
                 }
             } catch (error) {
-                 console.warn(`Could not fetch metadata for ${token.id} from ${token.tokenURI}`, error);
+                 console.warn(`Could not fetch metadata for ${token.id} from ${args.tokenURI}`, error);
             }
         }
         tokens.push(token);
       }
     }
-    // Sort by timestamp descending (newest first)
-    tokens.sort((a, b) => b.timestamp - a.timestamp);
+    // Sort by a hypothetical timestamp or block number descending (newest first)
+    // For now, logs are already recent based on the query, so we can return as is.
+    // A more complex sort might be needed if integrating live updates.
     return tokens;
   } catch (error) {
     console.error("Failed to fetch recent Nad.fun token logs:", error);
