@@ -18,17 +18,15 @@ const Treemap: React.FC<TreemapProps> = ({ data, width, height, mood, selectedId
   const root = useMemo(() => {
     if (data.length === 0) return null;
 
-    // Create a hierarchy for D3
     const hierarchyData = {
       name: 'Market',
       children: data
     };
 
     const rootNode = d3.hierarchy(hierarchyData)
-      .sum((d: any) => d.marketCap) // Size based on Market Cap
+      .sum((d: any) => d.marketCap)
       .sort((a, b) => (b.value || 0) - (a.value || 0));
 
-    // Create treemap layout
     const treemapLayout = d3.treemap()
       .size([width, height])
       .paddingInner(mood === 'Playful' ? 4 : 1)
@@ -39,24 +37,18 @@ const Treemap: React.FC<TreemapProps> = ({ data, width, height, mood, selectedId
     return rootNode;
   }, [data, width, height, mood]);
 
-  // Calculate zoom transform
   const transformStyle = useMemo(() => {
     if (!selectedId || !root) return { transform: 'translate(0px, 0px) scale(1)' };
 
-    // Find the selected leaf node
     const selectedNode = root.leaves().find((n: any) => n.data.id === selectedId);
     
-    // If not found in current view (e.g. filtered out), don't zoom
     if (!selectedNode) return { transform: 'translate(0px, 0px) scale(1)' };
 
-    // Calculate center of the selected node
     const x = (selectedNode.x0 + selectedNode.x1) / 2;
     const y = (selectedNode.y0 + selectedNode.y1) / 2;
     
-    // Zoom scale - 3x is usually a good balance
     const scale = 3; 
     
-    // Calculate translation to bring the node center to the screen center
     const translateX = width / 2 - x * scale;
     const translateY = height / 2 - y * scale;
 

@@ -1,5 +1,3 @@
-import { Token } from './types';
-
 // Palette for Playful Mood (Pastels)
 export const PLAYFUL_COLORS = {
   up: ['#86efac', '#4ade80', '#22c55e'], // Greens

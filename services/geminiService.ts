@@ -1,11 +1,20 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Token, MarketSummary } from '../types';
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Safe initialization
+const apiKey = process.env.API_KEY || '';
+const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
 export const getMarketInsight = async (tokens: Token[]): Promise<MarketSummary> => {
+  if (!ai) {
+    return {
+      headline: "API Key Missing",
+      sentiment: "Neutral",
+      insight: "Please configure your Gemini API Key to see AI insights."
+    };
+  }
+
   try {
-    // Filter top movers to keep context small
     const topGainers = [...tokens].sort((a, b) => b.change24h - a.change24h).slice(0, 3);
     const topLosers = [...tokens].sort((a, b) => a.change24h - b.change24h).slice(0, 3);
     

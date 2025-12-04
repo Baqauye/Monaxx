@@ -14,7 +14,16 @@ export interface Token {
   chainId?: string;
 }
 
-export type ViewMode = 'TreeMap' | 'List';
+export interface Holder {
+  address: string;
+  balance: number;
+  percentage: number;
+  isContract: boolean;
+  label?: string; // e.g. "Binance", "Deployer"
+  connections?: string[]; // IDs of other holders this wallet interacted with
+}
+
+export type ViewMode = 'TreeMap' | 'BubbleMap';
 export type Mood = 'Professional' | 'Playful';
 
 export interface MarketSummary {

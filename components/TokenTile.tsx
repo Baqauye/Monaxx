@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { Token, Mood } from '../types';
 import { PLAYFUL_COLORS, PROFESSIONAL_COLORS } from '../constants';
 
-// Inline Icons
 const TrendingUp = ({ size = 24 }: { size?: number }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline>
@@ -35,14 +34,12 @@ const TokenTile: React.FC<TokenTileProps> = ({ token, width, height, mood, onCli
   const isPositive = token.change24h >= 0;
   const colors = mood === 'Playful' ? PLAYFUL_COLORS : PROFESSIONAL_COLORS;
 
-  // Reset image state when token changes or imageUrl prop updates
   useEffect(() => {
     setCurrentImgSrc(token.imageUrl);
     setImageError(false);
   }, [token.imageUrl, token.id]);
 
   const handleImageError = () => {
-    // Fallback logic: Try backup -> Then fail
     if (currentImgSrc === token.imageUrl && token.backupImageUrl) {
       setCurrentImgSrc(token.backupImageUrl);
     } else {
@@ -96,7 +93,6 @@ const TokenTile: React.FC<TokenTileProps> = ({ token, width, height, mood, onCli
         ${!dimmed ? 'hover:shadow-2xl' : ''}
       `}
     >
-      {/* Background Watermark */}
       <div className="absolute pointer-events-none top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 transition-transform duration-500 group-hover:scale-110 opacity-10 mix-blend-overlay">
         {currentImgSrc && !imageError ? (
             <img 
@@ -110,7 +106,6 @@ const TokenTile: React.FC<TokenTileProps> = ({ token, width, height, mood, onCli
         )}
       </div>
 
-      {/* Main Image */}
       {showImage && (
         <div className="mb-1 relative z-10 transition-transform duration-300" style={{ transform: isHovered ? 'scale(1.1)' : 'scale(1)' }}>
             {currentImgSrc && !imageError ? (

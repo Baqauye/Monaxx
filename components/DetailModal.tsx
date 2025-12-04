@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { Token, Mood } from '../types';
 import { formatCompactNumber } from '../utils';
 
-// Inline Icons
 const XIcon = ({ size = 24 }: { size?: number }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
 );
@@ -63,7 +62,6 @@ const DetailModal: React.FC<DetailModalProps> = ({ token, onClose, mood }) => {
         className={`w-full max-w-lg overflow-hidden relative animate-[fadeIn_0.2s_ease-out] ${cardClass}`} 
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
         <div className="p-6 flex justify-between items-start">
           <div className="flex items-start gap-4">
              {currentImgSrc && !imageError && (
@@ -99,7 +97,6 @@ const DetailModal: React.FC<DetailModalProps> = ({ token, onClose, mood }) => {
           </button>
         </div>
 
-        {/* Price */}
         <div className="px-6 pb-6">
             <div className="flex items-baseline gap-3">
               <span className={`text-5xl font-mono font-medium ${mood === 'Playful' ? 'text-slate-700' : 'text-white'}`}>
@@ -111,7 +108,6 @@ const DetailModal: React.FC<DetailModalProps> = ({ token, onClose, mood }) => {
             </div>
         </div>
 
-        {/* Stats Grid */}
         <div className={`p-6 grid grid-cols-2 gap-4 ${mood === 'Playful' ? 'bg-slate-50' : 'bg-slate-950'}`}>
           <div className="p-4 rounded-xl bg-white/50 dark:bg-white/5 border border-black/5 dark:border-white/5">
             <div className="text-sm opacity-50 mb-1">Market Cap</div>
@@ -127,7 +123,6 @@ const DetailModal: React.FC<DetailModalProps> = ({ token, onClose, mood }) => {
           </div>
         </div>
 
-        {/* Footer Actions */}
         <div className="p-6 pt-0 flex gap-3">
             <a 
               href={token.pairUrl}
