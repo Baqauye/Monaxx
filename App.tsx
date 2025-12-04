@@ -142,7 +142,7 @@ const App: React.FC = () => {
             </div>
             <h1 className={`text-2xl font-bold tracking-tight ${mood === 'Playful' ? 'font-display' : 'font-mono'}`}>
               Monax
-              <span className="text-xs ml-2 opacity-50 font-normal border border-current px-1.5 py-0.5 rounded">Monad Ecosystems</span>
+              <span className="text-xs ml-2 opacity-50 font-normal border border-current px-1.5 py-0.5 rounded">for Monad</span>
             </h1>
           </div>
 
