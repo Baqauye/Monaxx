@@ -1,10 +1,11 @@
 // App.tsx
 import React, { useState, useEffect, useRef } from 'react';
 import { PLAYFUL_COLORS, PROFESSIONAL_COLORS } from './constants';
-import { Token, Mood, ViewMode } from './types';
+import { Token, Mood, ViewMode, NadFunToken } from './types';
 import Treemap from './components/Treemap';
 import DetailModal from './components/DetailModal';
 import HolderMap from './components/HolderMap';
+import NadFunTimeline from './components/NadFunTimeline'; // Import the new component
 import { fetchMonadTokens } from './services/monadService';
 
 // Simple SVG components without unused props
@@ -54,7 +55,7 @@ const NetworkIcon = () => (
 );
 
 const App: React.FC = () => {
-  const [viewMode, setViewMode] = useState<ViewMode>('TreeMap');
+  const [viewMode, setViewMode] = useState<ViewMode>('TreeMap'); // Default can be TreeMap or NadFunTimeline
   const [tokens, setTokens] = useState<Token[]>([]);
   const [filteredTokens, setFilteredTokens] = useState<Token[]>([]);
   const [mood, setMood] = useState<Mood>('Playful');
@@ -97,18 +98,22 @@ const App: React.FC = () => {
   };
 
   useEffect(() => {
-    loadMarketData();
-    const interval = setInterval(loadMarketData, 60000);
-    return () => clearInterval(interval);
-  }, []);
+    if (viewMode === 'TreeMap') { // Only load general market data if viewing TreeMap
+        loadMarketData();
+        const interval = setInterval(loadMarketData, 60000);
+        return () => clearInterval(interval);
+    }
+  }, [viewMode]); // Reload when viewMode changes to/from TreeMap
 
   useEffect(() => {
-    if (selectedCategory === 'All') {
-      setFilteredTokens(tokens);
-    } else {
-      setFilteredTokens(tokens.filter(t => t.category === selectedCategory));
+    if (viewMode === 'TreeMap') {
+        if (selectedCategory === 'All') {
+          setFilteredTokens(tokens);
+        } else {
+          setFilteredTokens(tokens.filter(t => t.category === selectedCategory));
+        }
     }
-  }, [selectedCategory, tokens]);
+  }, [selectedCategory, tokens, viewMode]); // Filter only applies to TreeMap view
 
   useEffect(() => {
     document.body.style.backgroundColor = themeColors.background;
@@ -127,6 +132,78 @@ const App: React.FC = () => {
     }
   };
 
+  // Determine the title based on the current view mode
+  const getTitle = () => {
+      switch (viewMode) {
+          case 'TreeMap':
+              return 'Top Tokens by Market Cap';
+          case 'BubbleMap':
+              return 'Token Holder Distribution';
+          case 'NadFunTimeline':
+              return 'Live Token Creation';
+          default:
+              return 'Dashboard';
+      }
+  };
+
+  // Determine the content based on the current view mode
+  const renderMainContent = () => {
+      if (viewMode === 'NadFunTimeline') {
+          return (
+              <div className="flex-1 min-h-[500px] w-full rounded-2xl overflow-hidden relative transition-all duration-500 flex flex-col border border-black/5 dark:border-white/5"
+                   style={{
+                       boxShadow: mood === 'Playful' ? '0 20px 40px -10px rgba(0,0,0,0.05)' : 'none',
+                       backgroundColor: mood === 'Playful' ? 'rgba(255,255,255,0.6)' : 'rgba(15, 23, 42, 0.6)'
+                   }}>
+                  <NadFunTimeline mood={mood} />
+              </div>
+          );
+      } else if (viewMode === 'TreeMap') {
+          return (
+              <>
+                  {isDataLoading && tokens.length === 0 ? (
+                      <div className="flex flex-col items-center gap-4 animate-fade-in">
+                          <div className={`w-12 h-12 rounded-full border-4 border-t-transparent animate-spin ${mood === 'Playful' ? 'border-indigo-500' : 'border-purple-500'}`}></div>
+                          <div className="text-lg font-medium opacity-60">Scanning Monad Chain...</div>
+                      </div>
+                  ) : tokens.length === 0 ? (
+                      <div className="text-center opacity-60 p-8">
+                          <p className="mb-4">No tokens found matching current criteria.</p>
+                          <button
+                              onClick={loadMarketData}
+                              className="px-4 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition"
+                          >
+                              Retry Fetch
+                          </button>
+                      </div>
+                  ) : (
+                      dimensions.width > 0 && dimensions.height > 0 && (
+                          <Treemap
+                              data={filteredTokens}
+                              width={dimensions.width}
+                              height={dimensions.height}
+                              mood={mood}
+                              onTileClick={setSelectedToken}
+                              selectedId={selectedToken?.id}
+                          />
+                      )
+                  )}
+              </>
+          );
+      } else { // BubbleMap
+          return (
+              dimensions.width > 0 && dimensions.height > 0 && (
+                  <HolderMap
+                      tokenAddress={activeAddress}
+                      width={dimensions.width}
+                      height={dimensions.height}
+                      mood={mood}
+                  />
+              )
+          );
+      }
+  };
+
   return (
     <div className={`min-h-screen flex flex-col transition-colors duration-500 font-sans ${mood === 'Professional' ? 'dark' : ''}`}>
 
@@ -140,7 +217,7 @@ const App: React.FC = () => {
             </div>
             <h1 className={`text-2xl font-bold tracking-tight ${mood === 'Playful' ? 'font-display' : 'font-mono'}`}>
               Monax
-              <span className="text-xs ml-2 opacity-50 font-normal border border-current px-1.5 py-0.5 rounded">Monad Ecosystems</span>
+              <span className="text-xs ml-2 opacity-50 font-normal border border-current px-1.5 py-0.5 rounded">Monad Eco</span>
             </h1>
           </div>
           <div className="hidden md:flex flex-1 mx-8 items-center justify-center">
@@ -169,17 +246,27 @@ const App: React.FC = () => {
             )}
           </div>
           <div className="flex items-center gap-2">
+            {/* Toggle View Mode Button - Cycle through views */}
             <button
-              onClick={() => setViewMode(v => v === 'TreeMap' ? 'BubbleMap' : 'TreeMap')}
+              onClick={() => {
+                  // Cycle through the views: TreeMap -> BubbleMap -> NadFunTimeline -> TreeMap ...
+                  const modes: ViewMode[] = ['TreeMap', 'BubbleMap', 'NadFunTimeline'];
+                  const currentIndex = modes.indexOf(viewMode);
+                  const nextIndex = (currentIndex + 1) % modes.length;
+                  setViewMode(modes[nextIndex]);
+              }}
               className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-bold transition-all ${
-                viewMode === 'BubbleMap'
+                viewMode === 'BubbleMap' || viewMode === 'NadFunTimeline'
                   ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300'
                   : 'hover:bg-black/5 dark:hover:bg-white/5 opacity-70'
               }`}
               title="Toggle View Mode"
             >
               <NetworkIcon />
-              <span className="hidden sm:inline">{viewMode === 'TreeMap' ? 'Market Map' : 'Holder Map'}</span>
+              <span className="hidden sm:inline">
+                  {viewMode === 'TreeMap' ? 'Market Map' :
+                   viewMode === 'BubbleMap' ? 'Holder Map' : 'NadFun Live'}
+              </span>
             </button>
             <button
               onClick={() => setMood(m => m === 'Playful' ? 'Professional' : 'Playful')}
@@ -196,27 +283,34 @@ const App: React.FC = () => {
       </header>
       <main className="flex-1 p-2 sm:p-4 md:p-6 max-w-[1600px] w-full mx-auto flex flex-col gap-4">
 
-        {viewMode === 'BubbleMap' && (
+        {(viewMode === 'BubbleMap' || viewMode === 'NadFunTimeline') && (
           <div className="md:hidden mb-4">
-            <form onSubmit={handleSearch} className="w-full flex items-center">
-              <input
-                type="text"
-                placeholder="Contract Address"
-                value={searchAddress}
-                onChange={(e) => setSearchAddress(e.target.value)}
-                className={`flex-1 px-4 py-2 rounded-l-lg border focus:outline-none ${mood === 'Playful' ? 'bg-white border-gray-200' : 'bg-slate-900 border-slate-700'}`}
-              />
-              <button type="submit" className="px-4 py-2 rounded-r-lg bg-indigo-600 text-white">Scan</button>
-            </form>
+            {viewMode === 'BubbleMap' && (
+                <form onSubmit={handleSearch} className="w-full flex items-center">
+                  <input
+                    type="text"
+                    placeholder="Contract Address"
+                    value={searchAddress}
+                    onChange={(e) => setSearchAddress(e.target.value)}
+                    className={`flex-1 px-4 py-2 rounded-l-lg border focus:outline-none ${mood === 'Playful' ? 'bg-white border-gray-200' : 'bg-slate-900 border-slate-700'}`}
+                  />
+                  <button type="submit" className="px-4 py-2 rounded-r-lg bg-indigo-600 text-white">Scan</button>
+                </form>
+            )}
+            {viewMode === 'NadFunTimeline' && (
+                <div className="text-sm opacity-50 text-center">
+                    Monitoring Nad.fun Token Creations...
+                </div>
+            )}
           </div>
         )}
         <div className="flex items-center justify-between px-2">
           <h2 className="text-sm font-bold opacity-70 uppercase tracking-wider">
-            {viewMode === 'TreeMap' ? 'Top Tokens by Market Cap' : 'Token Holder Distribution'}
+            {getTitle()}
           </h2>
           <div className="flex items-center gap-2 text-xs">
             <span className={`w-2 h-2 rounded-full ${isDataLoading ? 'bg-yellow-500 animate-pulse' : 'bg-green-500'}`}></span>
-            {isDataLoading ? 'Updating...' : 'Live Data'}
+            {isDataLoading ? 'Updating...' : (viewMode === 'NadFunTimeline' ? 'Live Feed' : 'Live Data')}
           </div>
         </div>
         <div
@@ -227,44 +321,7 @@ const App: React.FC = () => {
             backgroundColor: mood === 'Playful' ? 'rgba(255,255,255,0.6)' : 'rgba(15, 23, 42, 0.6)'
           }}
         >
-          {viewMode === 'TreeMap' ? (
-            isDataLoading && tokens.length === 0 ? (
-              <div className="flex flex-col items-center gap-4 animate-fade-in">
-                <div className={`w-12 h-12 rounded-full border-4 border-t-transparent animate-spin ${mood === 'Playful' ? 'border-indigo-500' : 'border-purple-500'}`}></div>
-                <div className="text-lg font-medium opacity-60">Scanning Monad Chain...</div>
-              </div>
-            ) : tokens.length === 0 ? (
-              <div className="text-center opacity-60 p-8">
-                <p className="mb-4">No tokens found matching current criteria.</p>
-                <button
-                  onClick={loadMarketData}
-                  className="px-4 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition"
-                >
-                  Retry Fetch
-                </button>
-              </div>
-            ) : (
-              dimensions.width > 0 && dimensions.height > 0 && (
-                <Treemap
-                  data={filteredTokens}
-                  width={dimensions.width}
-                  height={dimensions.height}
-                  mood={mood}
-                  onTileClick={setSelectedToken}
-                  selectedId={selectedToken?.id}
-                />
-              )
-            )
-          ) : (
-            dimensions.width > 0 && dimensions.height > 0 && (
-              <HolderMap
-                tokenAddress={activeAddress}
-                width={dimensions.width}
-                height={dimensions.height}
-                mood={mood}
-              />
-            )
-          )}
+          {renderMainContent()}
         </div>
         {viewMode === 'TreeMap' && (
           <div className="flex flex-wrap justify-center gap-2 pb-8">
