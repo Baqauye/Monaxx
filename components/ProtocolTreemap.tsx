@@ -3,6 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import * as d3 from 'd3';
 import { Protocol, Mood } from '../types';
 import { fetchMonadProtocols } from '../services/protocolService';
+import { formatCompactNumber } from '../utils';
 
 interface ProtocolTreemapProps {
   mood: Mood;
@@ -175,7 +176,7 @@ const ProtocolTreemap: React.FC<ProtocolTreemapProps> = ({ mood, onTileClick, se
             </div>
           </div>
           <div style={statsStyle}>
-            TVL: ${protocol.tvl?.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+            TVL: ${formatCompactNumber(protocol.tvl)}
           </div>
         </div>
       </div>
