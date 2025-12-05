@@ -1,20 +1,7 @@
-import React, { useState, useEffect } from 'react';
+// components/TokenTile.tsx
+import React, { useState, useEffect, useRef } from 'react';
 import { Token, Mood } from '../types';
-import { PLAYFUL_COLORS, PROFESSIONAL_COLORS } from '../constants';
-
-const TrendingUp = () => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline>
-    <polyline points="17 6 23 6 23 12"></polyline>
-  </svg>
-);
-
-const TrendingDown = () => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <polyline points="23 18 13.5 8.5 8.5 13.5 1 6"></polyline>
-    <polyline points="17 18 23 18 23 12"></polyline>
-  </svg>
-);
+import { formatCompactNumber } from '../utils';
 
 interface TokenTileProps {
   token: Token;
@@ -22,22 +9,19 @@ interface TokenTileProps {
   height: number;
   mood: Mood;
   onClick: (token: Token) => void;
-  dimmed?: boolean;
-  onHover?: (isHovering: boolean) => void;
+  dimmed: boolean;
+  onHover: (hovering: boolean) => void;
 }
 
 const TokenTile: React.FC<TokenTileProps> = ({ token, width, height, mood, onClick, dimmed, onHover }) => {
   const [currentImgSrc, setCurrentImgSrc] = useState<string | undefined>(token.imageUrl);
   const [imageError, setImageError] = useState(false);
-  const [isHovered, setIsHovered] = useState(false);
-  
-  const isPositive = token.change24h >= 0;
-  const colors = mood === 'Playful' ? PLAYFUL_COLORS : PROFESSIONAL_COLORS;
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setCurrentImgSrc(token.imageUrl);
     setImageError(false);
-  }, [token.imageUrl, token.id]);
+  }, [token.imageUrl]);
 
   const handleImageError = () => {
     if (currentImgSrc === token.imageUrl && token.backupImageUrl) {
@@ -47,109 +31,135 @@ const TokenTile: React.FC<TokenTileProps> = ({ token, width, height, mood, onCli
     }
   };
 
-  const intensity = Math.min(Math.abs(token.change24h) / 15, 1);
-  const colorIndex = intensity < 0.3 ? 0 : intensity < 0.6 ? 1 : 2;
-  const bgColor = isPositive ? colors.up[colorIndex] : colors.down[colorIndex];
-  
-  const fontSize = Math.min(width / 5, height / 4, 24);
-  const smallFontSize = Math.max(fontSize * 0.6, 10);
-  
-  const showText = width > 40 && height > 40;
-  const showDetail = width > 80 && height > 60;
-  
-  const imgSize = Math.min(width * 0.4, height * 0.4, 60);
-  const showImage = width > 50 && height > 50;
+  const isPositive = token.change24h >= 0;
+  const isLargeEnough = width > 80 && height > 60; // Define a threshold for showing detailed info
 
-  const handleMouseEnter = () => {
-    setIsHovered(true);
-    if (onHover) onHover(true);
+  const containerStyle = {
+    width: `${width}px`,
+    height: `${height}px`,
+    opacity: dimmed ? 0.3 : 1,
+    transition: 'opacity 0.2s ease',
+    padding: mood === 'Playful' ? '4px' : '2px',
+    boxSizing: 'border-box' as const,
   };
 
-  const handleMouseLeave = () => {
-    setIsHovered(false);
-    if (onHover) onHover(false);
+  const cardStyle = {
+    width: '100%',
+    height: '100%',
+    display: 'flex',
+    flexDirection: 'column' as const,
+    justifyContent: isLargeEnough ? 'space-between' : 'flex-start',
+    alignItems: 'flex-start',
+    padding: mood === 'Playful' ? '8px' : '4px',
+    borderRadius: mood === 'Playful' ? '16px' : '2px',
+    background: mood === 'Playful' ? 'linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(0,0,0,0.05) 100%)' : 'rgba(30, 41, 59, 0.6)',
+    border: mood === 'Playful' ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(255,255,255,0.05)',
+    backdropFilter: mood === 'Playful' ? 'blur(10px)' : 'blur(4px)',
+    cursor: 'pointer',
+    overflow: 'hidden',
+  };
+
+  const symbolStyle = {
+    fontSize: mood === 'Playful' ? (width > 120 ? '1.2em' : '1em') : (width > 120 ? '0.9em' : '0.8em'),
+    fontWeight: 'bold' as const,
+    color: mood === 'Playful' ? '#334155' : '#cbd5e1',
+    textShadow: mood === 'Playful' ? '0 1px 2px rgba(255,255,255,0.5)' : 'none',
+    whiteSpace: 'nowrap' as const,
+    overflow: 'hidden' as const,
+    textOverflow: 'ellipsis' as const,
+  };
+
+  const nameStyle = {
+    fontSize: mood === 'Playful' ? '0.75em' : '0.65em',
+    color: mood === 'Playful' ? '#64748b' : '#94a3b8',
+    whiteSpace: 'nowrap' as const,
+    overflow: 'hidden' as const,
+    textOverflow: 'ellipsis' as const,
+    marginTop: '2px',
+  };
+
+  const priceStyle = {
+    fontSize: mood === 'Playful' ? '0.9em' : '0.8em',
+    fontWeight: 'bold' as const,
+    color: mood === 'Playful' ? (isPositive ? '#10b981' : '#ef4444') : (isPositive ? '#34d399' : '#f87171'),
+    marginTop: isLargeEnough ? 'auto' : '4px',
+  };
+
+  const statsStyle = {
+    fontSize: mood === 'Playful' ? '0.75em' : '0.65em',
+    color: mood === 'Playful' ? '#94a3b8' : '#64748b',
+    marginTop: '2px',
+  };
+
+  const imgStyle = {
+    width: mood === 'Playful' ? '24px' : '20px',
+    height: mood === 'Playful' ? '24px' : '20px',
+    borderRadius: '50%',
+    objectFit: 'cover' as const,
+    alignSelf: 'flex-end',
+    marginBottom: mood === 'Playful' ? '4px' : '2px',
+  };
+
+  // Format price to be human-readable
+  const formatPrice = (p: number) => {
+    if (p < 0.000001) return p.toExponential(4);
+    if (p < 0.01) return p.toFixed(6);
+    if (p < 1) return p.toFixed(4);
+    return p.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   };
 
   return (
     <div
+      ref={containerRef}
+      style={containerStyle}
+      onMouseEnter={() => onHover(true)}
+      onMouseLeave={() => onHover(false)}
       onClick={() => onClick(token)}
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
-      style={{
-        width: '100%',
-        height: '100%',
-        backgroundColor: bgColor,
-        color: isPositive && mood === 'Playful' ? '#064e3b' : isPositive ? '#f0fdf4' : '#fff0f2',
-        opacity: dimmed ? 0.3 : 1,
-        filter: dimmed ? 'grayscale(0.6) blur(1px)' : 'none',
-        transform: isHovered ? 'scale(1.02)' : dimmed ? 'scale(0.95)' : 'scale(1)',
-        zIndex: isHovered ? 20 : 1,
-        transition: 'all 0.4s cubic-bezier(0.2, 0.8, 0.2, 1)'
-      }}
-      className={`
-        relative overflow-hidden cursor-pointer shadow-sm
-        ${mood === 'Playful' ? 'rounded-2xl border-4 border-white/20' : 'rounded-none border border-black/10'}
-        flex flex-col items-center justify-center text-center p-1
-        ${!dimmed ? 'hover:shadow-2xl' : ''}
-      `}
     >
-      <div className="absolute pointer-events-none top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 transition-transform duration-500 group-hover:scale-110 opacity-10 mix-blend-overlay">
-        {currentImgSrc && !imageError ? (
-            <img 
-              src={currentImgSrc} 
-              alt="" 
-              className="w-32 h-32 object-cover grayscale blur-sm" 
+      <div style={cardStyle}>
+        <div style={{ display: 'flex', alignItems: 'center', width: '100%' }}>
+          {currentImgSrc && !imageError ? (
+            <img
+              src={currentImgSrc}
+              alt={token.name}
+              style={imgStyle}
               onError={handleImageError}
             />
-        ) : (
-            <div className="w-24 h-24 rounded-full bg-white/20" />
+          ) : imageError ? (
+            <div style={{
+              ...imgStyle,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: mood === 'Playful' ? '#e2e8f0' : '#1e293b',
+              color: mood === 'Playful' ? '#64748b' : '#94a3b8',
+              fontSize: '0.7em',
+              borderRadius: '50%',
+            }}>
+              ?
+            </div>
+          ) : (
+            <div style={{ ...imgStyle, backgroundColor: 'transparent' }} /> // Placeholder to keep alignment
+          )}
+          <div style={{ flex: 1, marginLeft: '6px' }}>
+            <div style={symbolStyle}>{token.symbol}</div>
+            {isLargeEnough && <div style={nameStyle}>{token.name}</div>}
+          </div>
+        </div>
+        {isLargeEnough && (
+          <>
+            <div style={priceStyle}>
+              ${formatPrice(token.price)}
+              <span style={{ fontSize: '0.8em', marginLeft: '4px' }}>
+                {isPositive ? '↑' : '↓'}{Math.abs(token.change24h).toFixed(2)}%
+              </span>
+            </div>
+            <div style={statsStyle}>
+              MC: ${formatCompactNumber(token.marketCap)}
+            </div>
+          </>
         )}
       </div>
-
-      {showImage && (
-        <div className="mb-1 relative z-10 transition-transform duration-300" style={{ transform: isHovered ? 'scale(1.1)' : 'scale(1)' }}>
-            {currentImgSrc && !imageError ? (
-                <img 
-                    src={currentImgSrc} 
-                    alt={token.symbol}
-                    style={{ width: imgSize, height: imgSize }}
-                    className={`object-cover shadow-sm bg-white/10 ${mood === 'Playful' ? 'rounded-full border-2 border-white/40' : 'rounded-md'}`}
-                    onError={handleImageError}
-                />
-            ) : (
-                <div 
-                    style={{ width: imgSize, height: imgSize }}
-                    className={`flex items-center justify-center bg-black/10 dark:bg-white/10 backdrop-blur-sm ${mood === 'Playful' ? 'rounded-full' : 'rounded-md'}`}
-                >
-                    <span className="font-bold opacity-50 text-xs">{token.symbol.substring(0, 1)}</span>
-                </div>
-            )}
-        </div>
-      )}
-
-      {showText && (
-        <>
-          <span 
-            className={`font-bold uppercase tracking-tight truncate w-full px-1 z-10 ${mood === 'Playful' ? 'font-display' : 'font-sans'}`}
-            style={{ fontSize: `${fontSize}px`, textShadow: '0 2px 4px rgba(0,0,0,0.05)' }}
-          >
-            {token.symbol}
-          </span>
-          <div className="flex items-center gap-1 font-medium z-10 opacity-90" style={{ fontSize: `${smallFontSize}px` }}>
-            {isPositive ? <TrendingUp /> : <TrendingDown />}
-            <span>{Math.abs(token.change24h).toFixed(2)}%</span>
-          </div>
-        </>
-      )}
-
-      {showDetail && (
-        <span 
-          className="mt-1 opacity-80 z-10 font-mono tracking-tighter" 
-          style={{ fontSize: `${smallFontSize * 0.8}px` }}
-        >
-          ${token.price < 0.01 ? token.price.toExponential(2) : token.price < 1 ? token.price.toFixed(4) : token.price.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-        </span>
-      )}
     </div>
   );
 };
