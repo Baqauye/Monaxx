@@ -1,16 +1,9 @@
 // services/monadService.ts
 import { Token } from '../types';
-import blockvision from '@api/blockvision';
 
 // BlockVision API Key
 const BLOCKVISION_API_KEY = '36RJSlyM5vIL2R1kKugyMU1NZeT';
-
-// Initialize BlockVision client
-const blockvisionClient = blockvision.initialize({
-    apiKey: BLOCKVISION_API_KEY,
-    // Assuming mainnet, adjust if needed
-    // The API handles network selection via the key, so no specific network config needed here for the client instance
-});
+const BLOCKVISION_BASE_URL = 'https://api.blockvision.org/v2/monad';
 
 const isStableCoin = (symbol: string, name: string): boolean => {
   const s = (symbol|| '').toUpperCase();
@@ -28,50 +21,68 @@ const guessCategory = (symbol: string, name: string): string => {
   if (s.includes('ST') || n.includes('STAKED')) return 'Staked';
   if (n.includes('AI') || n.includes('GPT') || s.includes('AI')) return 'AI';
   if (n.includes('SWAP') || n.includes('DEX') || n.includes('FINANCE') || n.includes('PROTOCOL') || n.includes('YIELD')) return 'DeFi';
-  // Check for common meme coin indicators
   if (n.includes('PEPE') || n.includes('SHIB') || n.includes('DOGE') || n.includes('FLOKI') || n.includes('BONK') || n.includes('WIF')) return 'Meme';
-  // Default to Meme if no specific category is found
   return 'Meme';
 };
 
-export const fetchMonadTokens = async (): Promise<Token[]> => {
-  // For now, let's fetch a list of common tokens or use a placeholder if BlockVision doesn't have a direct 'all tokens' endpoint.
-  // We'll use the Token Detail endpoint for known tokens or try the Account Tokens endpoint for a specific address if available.
-  // A more robust solution might involve indexing or a token list.
-  // For demonstration, let's try fetching details for a few known tokens or use the account tokens endpoint with a common address.
-  // Let's try the Retrieve Account Tokens endpoint for a common address that holds many tokens.
-  // Example address: 0x7B2728c04aD436153285702e969e6EfAc3a97777 (from the BlockVision docs)
-  // This might not give *all* tokens on the chain, but a representative sample.
+// Helper function to call BlockVision API
+const callBlockVisionAPI = async (endpoint: string, params: Record<string, any>) => {
+  const url = new URL(`${BLOCKVISION_BASE_URL}${endpoint}`);
+  Object.keys(params).forEach(key => url.searchParams.append(key, params[key]));
 
-  const commonAddress = '0x7B2728c04aD436153285702e969e6EfAc3a97777'; // Example from docs, replace with a more suitable one if needed
+  const response = await fetch(url.toString(), {
+    headers: {
+      'x-api-key': BLOCKVISION_API_KEY,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`BlockVision API Error: ${response.statusText}`);
+  }
+
+  return response.json();
+};
+
+export const fetchMonadTokens = async (): Promise<Token[]> => {
+  const commonAddress = '0x7B2728c04aD436153285702e969e6EfAc3a97777'; // Example from docs
   try {
-    const response = await blockvisionClient.get_monadaccounttokens({ address: commonAddress });
-    if (response.code !== 0) {
-        console.error("BlockVision API Error (Account Tokens):", response.reason);
+    // 1. Fetch tokens held by the common address
+    const accountTokensResponse = await callBlockVisionAPI('/account/tokens', { address: commonAddress });
+    if (accountTokensResponse.code !== 0) {
+        console.error("BlockVision API Error (Account Tokens):", accountTokensResponse.reason);
         return [];
     }
 
-    const tokenList = response.result?.data || [];
+    const tokenList = accountTokensResponse.result?.data || [];
 
+    // 2. Fetch market data and details for each token
     const tokens: Token[] = await Promise.all(tokenList.map(async (tokenData: any) => {
         const contractAddress = tokenData.contractAddress;
         try {
-            // Fetch detailed market data for each token found in the account
-            const marketResponse = await blockvisionClient.get_monadtokenmarketdata({ token: contractAddress });
-            const detailResponse = await blockvisionClient.retrieveTokenDetail({ address: contractAddress });
-
-            let marketData = {};
-            let detailData = {};
-            if (marketResponse.code === 0 && marketResponse.result) {
-                 marketData = marketResponse.result;
-            } else {
-                console.warn(`Market data not available for ${contractAddress}:`, marketResponse.reason);
+            // Fetch market data
+            let marketData = { priceInUsd: '0', marketCap: '0', volume24H: '0', fdvInUsd: '0', liquidityInUsd: '0', market: { hour24: { priceChange: '0' } } };
+            try {
+                const marketResponse = await callBlockVisionAPI('/token/market/data', { token: contractAddress });
+                if (marketResponse.code === 0 && marketResponse.result) {
+                     marketData = marketResponse.result;
+                } else {
+                    console.warn(`Market data not available for ${contractAddress}:`, marketResponse.reason);
+                }
+            } catch (bvMarketError) {
+                 console.warn(`Could not fetch market data for ${contractAddress}:`, bvMarketError);
             }
 
-            if (detailResponse.code === 0 && detailResponse.result) {
-                 detailData = detailResponse.result;
-            } else {
-                console.warn(`Detail data not available for ${contractAddress}:`, detailResponse.reason);
+            // Fetch token details
+            let detailData = { name: '', symbol: '', logo: '', totalSupply: '', holders: 0 };
+            try {
+                const detailResponse = await callBlockVisionAPI('/token/detail', { address: contractAddress });
+                if (detailResponse.code === 0 && detailResponse.result) {
+                     detailData = detailResponse.result;
+                } else {
+                    console.warn(`Detail data not available for ${contractAddress}:`, detailResponse.reason);
+                }
+            } catch (bvDetailError) {
+                 console.warn(`Could not fetch detail data for ${contractAddress}:`, bvDetailError);
             }
 
             const price = parseFloat(marketData.priceInUsd || '0');
@@ -79,7 +90,7 @@ export const fetchMonadTokens = async (): Promise<Token[]> => {
             const volume24h = parseFloat(marketData.volume24H || '0');
             const fdv = parseFloat(marketData.fdvInUsd || '0');
             const liquidity = parseFloat(marketData.liquidityInUsd || '0');
-            const change24h = parseFloat(marketData.market?.hour24?.priceChange || '0'); // Using 24h change from market object
+            const change24h = parseFloat(marketData.market?.hour24?.priceChange || '0');
 
             const name = detailData.name || tokenData.name || 'Unknown';
             const symbol = detailData.symbol || tokenData.symbol || 'UNKNOWN';
@@ -96,20 +107,19 @@ export const fetchMonadTokens = async (): Promise<Token[]> => {
                 marketCap: marketCap,
                 volume24h: volume24h,
                 category: guessCategory(symbol, name),
-                dominance: 0, // Will be calculated later
+                dominance: 0,
                 fdv: fdv,
                 liquidity: liquidity,
                 holders: holders,
                 totalSupply: totalSupply,
                 imageUrl: imageUrl,
                 backupImageUrl: undefined,
-                pairUrl: `https://monad.explorer.com/token/${contractAddress}`, // Placeholder link
+                pairUrl: `https://monad.explorer.com/token/${contractAddress}`,
                 chainId: 'monad',
                 isStable: isStableCoin(symbol, name),
             };
         } catch (innerError) {
             console.error(`Error fetching details for token ${contractAddress}:`, innerError);
-            // Return a minimal token object or skip
             return {
                 id: contractAddress,
                 name: tokenData.name || 'Unknown',
@@ -129,10 +139,8 @@ export const fetchMonadTokens = async (): Promise<Token[]> => {
         }
     }));
 
-    // Filter out tokens with zero market cap or other critical data missing if necessary
-    const validTokens = tokens.filter(t => t.marketCap > 0); // Adjust filter as needed
+    const validTokens = tokens.filter(t => t.marketCap > 0);
 
-    // Calculate total market cap for dominance
     const totalMcap = validTokens.reduce((sum, t) => sum + t.marketCap, 0);
 
     return validTokens.map(t => ({
@@ -148,7 +156,7 @@ export const fetchMonadTokens = async (): Promise<Token[]> => {
 
 export const fetchTokenHolders = async (tokenAddress: string): Promise<Holder[]> => {
   try {
-    const response = await blockvisionClient.retrieveTokenHolders({ contractAddress: tokenAddress, limit: 100 }); // Fetch top 100 holders
+    const response = await callBlockVisionAPI('/token/holders', { contractAddress: tokenAddress, limit: 100 });
     if (response.code !== 0) {
         console.error("BlockVision API Error (Token Holders):", response.reason);
         return [];
@@ -158,7 +166,7 @@ export const fetchTokenHolders = async (tokenAddress: string): Promise<Holder[]>
 
     return holdersData.map((holderData: any) => ({
         address: holderData.holder,
-        balance: parseFloat(holderData.amount) || 0, // Assuming amount is a string number
+        balance: parseFloat(holderData.amount) || 0,
         percentage: parseFloat(holderData.percentage) || 0,
         isContract: holderData.isContract,
         // Note: BlockVision API doesn't seem to provide 'label' or 'connections' directly in the holders endpoint
