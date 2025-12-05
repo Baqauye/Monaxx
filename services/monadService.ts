@@ -1,5 +1,5 @@
 // services/monadService.ts
-import { Token } from '../types';
+import { Token, Holder } from '../types'; // Assuming Holder type is defined here too
 
 // --- API Configuration ---
 const CODEX_API_KEY = '6a28836dea12a4050f2e0256b585eef55f75aeb8'; // Your Codex key
@@ -7,8 +7,6 @@ const CODEX_GRAPHQL_ENDPOINT = 'https://graph.codex.io/graphql';
 
 const BLOCKVISION_API_KEY = '36RJSlyM5vIL2R1kKugyMU1NZeT'; // Your BlockVision key
 const BLOCKVISION_BASE_URL = 'https://api.blockvision.org/v2/monad';
-
-const MONAD_RPC_URL = 'https://rpc1.monad.xyz'; // For potential Lens queries later
 
 // --- Helper Functions ---
 
@@ -193,7 +191,7 @@ export const fetchMonadTokens = async (): Promise<Token[]> => {
     const codexResult = await callCodexAPI(query);
     const items = codexResult.data?.filterTokens?.results || [];
 
-    // Filter out obvious junk from Codex results
+    // Filter out obvious junk from Codex results - REMOVED 'NFT' CRITERIA
     const filteredItems = items.filter((item: any) => {
       const t = item.token;
       if (!t || !t.symbol || !t.name) return false;
@@ -201,7 +199,7 @@ export const fetchMonadTokens = async (): Promise<Token[]> => {
       const s = t.symbol.toUpperCase();
       const n = t.name.toUpperCase();
 
-      const junkKeywords = ['FAUCET', 'TEST', 'MOCK', 'EXAMPLE', 'DEMO', 'NFT'];
+      const junkKeywords = ['FAUCET', 'TEST', 'MOCK', 'EXAMPLE', 'DEMO']; // 'NFT' removed from this list
       if (junkKeywords.some(keyword => n.includes(keyword) || s.includes(keyword))) {
         return false;
       }
