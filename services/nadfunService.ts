@@ -1,11 +1,10 @@
 // services/nadfunService.ts
 import { Token } from '../types';
 import { ethers } from 'ethers';
-import blockvision from '@api/blockvision';
 
 // --- Configuration ---
 const BONDING_CURVE_ROUTER_ADDRESS = '0x6F6B8F1a20703309951a5127c45B49b1CD981A22';
-const LENS_ADDRESS = '0x7e78A8DE94f21804F7a17F4E8BF9EC2c872187ea'; // Use Lens for queries
+const LENS_ADDRESS = '0x7e78A8DE94f21804F7a17F4E8BF9EC2c872187ea';
 const BONDING_CURVE_ROUTER_ABI = [
   {
     "type": "event",
@@ -44,8 +43,7 @@ const LENS_ABI = [
 
 const MONAD_RPC_URL = 'https://rpc1.monad.xyz';
 const BLOCKVISION_API_KEY = '36RJSlyM5vIL2R1kKugyMU1NZeT';
-
-const blockvisionClient = blockvision.initialize({ apiKey: BLOCKVISION_API_KEY });
+const BLOCKVISION_BASE_URL = 'https://api.blockvision.org/v2/monad';
 
 let provider: ethers.JsonRpcProvider | null = null;
 let contract: ethers.Contract | null = null;
@@ -65,21 +63,36 @@ const initializeProviderAndContract = () => {
   return { provider, contract, lensContract };
 };
 
-// Function to estimate price using Lens contract
+// Helper function to call BlockVision API
+const callBlockVisionAPI = async (endpoint: string, params: Record<string, any>) => {
+  const url = new URL(`${BLOCKVISION_BASE_URL}${endpoint}`);
+  Object.keys(params).forEach(key => url.searchParams.append(key, params[key]));
+
+  const response = await fetch(url.toString(), {
+    headers: {
+      'x-api-key': BLOCKVISION_API_KEY,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`BlockVision API Error: ${response.statusText}`);
+  }
+
+  return response.json();
+};
+
 const estimatePriceFromLens = async (tokenAddress: string): Promise<number> => {
     try {
         const { lensContract } = initializeProviderAndContract();
-        // Query Lens for the amount of MON received for 1 token (selling 1 token)
-        // This gives us the inverse price (MON per token). We need MON per token, so we use 1 MON as input.
-        const amountIn = ethers.parseEther("1"); // 1 MON
-        const isBuy = true; // We want to know how many tokens we get for 1 MON (buying)
+        const amountIn = ethers.parseEther("1");
+        const isBuy = true;
         const [router, amountOut] = await lensContract.getAmountOut(tokenAddress, amountIn, isBuy);
-        const pricePerToken = Number(amountOut) / 1e18; // Assuming MON has 18 decimals
+        const pricePerToken = Number(amountOut) / 1e18;
         console.log(`Estimated price for ${tokenAddress} using Lens: ${pricePerToken} MON`);
         return pricePerToken;
     } catch (err) {
         console.warn(`Could not estimate price for ${tokenAddress} using Lens:`, err);
-        return 0; // Return 0 if estimation fails
+        return 0;
     }
 };
 
@@ -94,21 +107,19 @@ export const startListeningForNewTokens = (onNewToken: (token: Token) => void): 
   const listener = async (creator: string, tokenAddress: string, pool: string, name: string, symbol: string, tokenURI: string, vMonReserve: bigint, vTokenReserve: bigint, targetAmount: bigint) => {
     console.log(`New Nad.fun token created: ${name} (${symbol}) at ${tokenAddress}`);
 
-    // Estimate initial price using Lens
     const estimatedMonPrice = await estimatePriceFromLens(tokenAddress);
 
-    // Create a minimal Token object based on the event data and estimated price
     const newToken: Token = {
       id: tokenAddress,
       name: name,
       symbol: symbol,
-      price: estimatedMonPrice, // Use estimated price initially
+      price: estimatedMonPrice,
       change24h: 0,
-      marketCap: 0, // Needs trading volume to calculate accurately
+      marketCap: 0,
       volume24h: 0,
       category: 'NadFun',
       dominance: 0,
-      imageUrl: '', // Attempt to fetch from tokenURI
+      imageUrl: '',
       backupImageUrl: undefined,
       pairUrl: `https://nad.fun/token/${tokenAddress}`,
       chainId: 'monad',
@@ -129,9 +140,9 @@ export const startListeningForNewTokens = (onNewToken: (token: Token) => void): 
         }
     }
 
-    // Fetch market data from BlockVision API for more accurate info if available
+    // Fetch market data from BlockVision API
     try {
-        const marketResponse = await blockvisionClient.get_monadtokenmarketdata({ token: tokenAddress });
+        const marketResponse = await callBlockVisionAPI('/token/market/data', { token: tokenAddress });
         if (marketResponse.code === 0 && marketResponse.result) {
              const marketData = marketResponse.result;
              newToken.price = parseFloat(marketData.priceInUsd || newToken.price.toString());
@@ -143,15 +154,13 @@ export const startListeningForNewTokens = (onNewToken: (token: Token) => void): 
         }
     } catch (bvError) {
          console.warn(`Could not fetch BlockVision data for new token ${tokenAddress}:`, bvError);
-         // Keep the estimated data or default values
     }
 
     // Fetch token details from BlockVision API
     try {
-        const detailResponse = await blockvisionClient.retrieveTokenDetail({ address: tokenAddress });
+        const detailResponse = await callBlockVisionAPI('/token/detail', { address: tokenAddress });
         if (detailResponse.code === 0 && detailResponse.result) {
              const detailData = detailResponse.result;
-             // Update name/symbol if they differ (BlockVision might have canonical names)
              newToken.name = detailData.name || newToken.name;
              newToken.symbol = detailData.symbol || newToken.symbol;
              newToken.imageUrl = detailData.logo || newToken.imageUrl;
@@ -160,7 +169,6 @@ export const startListeningForNewTokens = (onNewToken: (token: Token) => void): 
         }
     } catch (bvDetailError) {
          console.warn(`Could not fetch BlockVision details for new token ${tokenAddress}:`, bvDetailError);
-         // Keep the initial data
     }
 
     onNewToken(newToken);
@@ -200,12 +208,11 @@ export const fetchRecentNadFunTokens = async (limit: number = 50): Promise<Token
       const parsedLog = iface.parseLog(log);
       if (parsedLog) {
         const args = parsedLog.args;
-        // Create initial token object
         const token: Token = {
           id: args.token,
           name: args.name,
           symbol: args.symbol,
-          price: 0, // Will fetch from API
+          price: 0,
           change24h: 0,
           marketCap: 0,
           volume24h: 0,
@@ -232,9 +239,8 @@ export const fetchRecentNadFunTokens = async (limit: number = 50): Promise<Token
             }
         }
 
-        // Fetch market and detail data from BlockVision
         try {
-            const marketResponse = await blockvisionClient.get_monadtokenmarketdata({ token: token.id });
+            const marketResponse = await callBlockVisionAPI('/token/market/data', { token: token.id });
             if (marketResponse.code === 0 && marketResponse.result) {
                  const marketData = marketResponse.result;
                  token.price = parseFloat(marketData.priceInUsd || '0');
@@ -249,7 +255,7 @@ export const fetchRecentNadFunTokens = async (limit: number = 50): Promise<Token
         }
 
         try {
-            const detailResponse = await blockvisionClient.retrieveTokenDetail({ address: token.id });
+            const detailResponse = await callBlockVisionAPI('/token/detail', { address: token.id });
             if (detailResponse.code === 0 && detailResponse.result) {
                  const detailData = detailResponse.result;
                  token.name = detailData.name || token.name;
