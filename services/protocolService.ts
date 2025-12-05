@@ -23,7 +23,8 @@ const callBlockVisionAPI = async (endpoint: string, params: Record<string, any>)
 };
 
 export const fetchMonadProtocols = async (): Promise<Protocol[]> => {
-  const exampleAddress = '0xDC7C03CCEE6B098eE22b5d522ebBd78De6aFA7B7'; // From BlockVision docs example
+  // Example address known to interact with multiple protocols
+  const exampleAddress = '0xDC7C03CCEE6B098eE22b5d522ebBd78De6aFA7B7';
 
   try {
     const response = await callBlockVisionAPI('/account/defiPortfolio', { address: exampleAddress });
