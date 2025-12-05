@@ -63,7 +63,6 @@ const DetailModal: React.FC<DetailModalProps> = ({ token, onClose, mood }) => {
 
   /**
    * Formats the price to be human-readable.
-   * For very small numbers, it uses scientific notation only if necessary.
    */
   const formatPrice = (p: number) => {
     if (p < 0.000001) return p.toExponential(4);
@@ -87,6 +86,11 @@ const DetailModal: React.FC<DetailModalProps> = ({ token, onClose, mood }) => {
                 className={`w-16 h-16 object-cover shadow-md ${mood === 'Playful' ? 'rounded-2xl' : 'rounded-full border border-white/10'}`}
                 onError={handleImageError}
               />
+            )}
+            {(!currentImgSrc || imageError) && (
+              <div className={`w-16 h-16 flex items-center justify-center bg-gray-200 dark:bg-slate-700 ${mood === 'Playful' ? 'rounded-2xl' : 'rounded-full border border-white/10'}`}>
+                <span className="text-gray-500 dark:text-slate-400">?</span>
+              </div>
             )}
             <div>
               <div className="flex items-center gap-2 mb-1">
@@ -135,6 +139,22 @@ const DetailModal: React.FC<DetailModalProps> = ({ token, onClose, mood }) => {
               ${formatCompactNumber(token.volume24h)}
             </div>
           </div>
+          {token.liquidity !== undefined && (
+            <>
+              <div className="p-4 rounded-xl bg-white/50 dark:bg-white/5 border border-black/5 dark:border-white/5">
+                <div className="text-sm opacity-50 mb-1">Liquidity</div>
+                <div className="font-mono font-medium text-lg truncate">
+                  ${formatCompactNumber(token.liquidity)}
+                </div>
+              </div>
+              <div className="p-4 rounded-xl bg-white/50 dark:bg-white/5 border border-black/5 dark:border-white/5">
+                <div className="text-sm opacity-50 mb-1">Decimals</div>
+                <div className="font-mono font-medium text-lg truncate">
+                  {token.decimals}
+                </div>
+              </div>
+            </>
+          )}
         </div>
         <div className="p-6 pt-0 flex gap-3">
           <a
