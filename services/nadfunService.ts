@@ -1,11 +1,11 @@
 // services/nadfunService.ts
-import { Token } from '../types'; // Use the existing Token interface
-import { ethers } from 'ethers'; // Make sure ethers is installed: npm install ethers
+import { Token } from '../types';
+import { ethers } from 'ethers';
+import blockvision from '@api/blockvision';
 
 // --- Configuration ---
-// Nad.fun Contract Addresses (using Mainnet as per your document)
 const BONDING_CURVE_ROUTER_ADDRESS = '0x6F6B8F1a20703309951a5127c45B49b1CD981A22';
-// ABI snippets for the BondingCurveRouter (just the CurveCreate event)
+const LENS_ADDRESS = '0x7e78A8DE94f21804F7a17F4E8BF9EC2c872187ea'; // Use Lens for queries
 const BONDING_CURVE_ROUTER_ABI = [
   {
     "type": "event",
@@ -24,61 +24,97 @@ const BONDING_CURVE_ROUTER_ABI = [
     "anonymous": false
   }
 ];
+// ABI for Lens (simplified for getAmountOut)
+const LENS_ABI = [
+  {
+    "inputs": [
+      { "internalType": "address", "name": "_token", "type": "address" },
+      { "internalType": "uint256", "name": "_amountIn", "type": "uint256" },
+      { "internalType": "bool", "name": "_isBuy", "type": "bool" }
+    ],
+    "name": "getAmountOut",
+    "outputs": [
+      { "internalType": "address", "name": "router", "type": "address" },
+      { "internalType": "uint256", "name": "amountOut", "type": "uint256" }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  }
+];
 
-// RPC URL for Monad Mainnet
-const MONAD_RPC_URL = 'https://rpc1.monad.xyz'; // Or another reliable one from your list
+const MONAD_RPC_URL = 'https://rpc1.monad.xyz';
+const BLOCKVISION_API_KEY = '36RJSlyM5vIL2R1kKugyMU1NZeT';
+
+const blockvisionClient = blockvision.initialize({ apiKey: BLOCKVISION_API_KEY });
 
 let provider: ethers.JsonRpcProvider | null = null;
 let contract: ethers.Contract | null = null;
-let eventListenersSet = false; // Flag to prevent duplicate listeners
+let lensContract: ethers.Contract | null = null;
+let eventListenersSet = false;
 
-// Initialize provider and contract
-const initializeProviderAndContract = (): { provider: ethers.JsonRpcProvider, contract: ethers.Contract } => {
+const initializeProviderAndContract = () => {
   if (!provider) {
     provider = new ethers.JsonRpcProvider(MONAD_RPC_URL);
   }
   if (!contract) {
     contract = new ethers.Contract(BONDING_CURVE_ROUTER_ADDRESS, BONDING_CURVE_ROUTER_ABI, provider);
   }
-  return { provider, contract };
+  if (!lensContract) {
+      lensContract = new ethers.Contract(LENS_ADDRESS, LENS_ABI, provider);
+  }
+  return { provider, contract, lensContract };
 };
 
-/**
- * Starts listening for new Nad.fun token creations.
- * @param onNewToken Callback function called when a new token is detected.
- * @returns Function to stop listening.
- */
+// Function to estimate price using Lens contract
+const estimatePriceFromLens = async (tokenAddress: string): Promise<number> => {
+    try {
+        const { lensContract } = initializeProviderAndContract();
+        // Query Lens for the amount of MON received for 1 token (selling 1 token)
+        // This gives us the inverse price (MON per token). We need MON per token, so we use 1 MON as input.
+        const amountIn = ethers.parseEther("1"); // 1 MON
+        const isBuy = true; // We want to know how many tokens we get for 1 MON (buying)
+        const [router, amountOut] = await lensContract.getAmountOut(tokenAddress, amountIn, isBuy);
+        const pricePerToken = Number(amountOut) / 1e18; // Assuming MON has 18 decimals
+        console.log(`Estimated price for ${tokenAddress} using Lens: ${pricePerToken} MON`);
+        return pricePerToken;
+    } catch (err) {
+        console.warn(`Could not estimate price for ${tokenAddress} using Lens:`, err);
+        return 0; // Return 0 if estimation fails
+    }
+};
+
 export const startListeningForNewTokens = (onNewToken: (token: Token) => void): (() => void) => {
   const { contract } = initializeProviderAndContract();
 
   if (eventListenersSet) {
     console.warn("Event listeners for Nad.fun tokens are already set. Skipping duplicate setup.");
-    // Return a dummy stop function if already set, or implement a way to manage multiple listeners
     return () => {};
   }
 
   const listener = async (creator: string, tokenAddress: string, pool: string, name: string, symbol: string, tokenURI: string, vMonReserve: bigint, vTokenReserve: bigint, targetAmount: bigint) => {
     console.log(`New Nad.fun token created: ${name} (${symbol}) at ${tokenAddress}`);
-    // Create a minimal Token object based on the event data
-    // Prices, volume, market cap are initially unknown or zero
+
+    // Estimate initial price using Lens
+    const estimatedMonPrice = await estimatePriceFromLens(tokenAddress);
+
+    // Create a minimal Token object based on the event data and estimated price
     const newToken: Token = {
       id: tokenAddress,
       name: name,
       symbol: symbol,
-      price: 0, // Initial price is unknown
-      change24h: 0, // No change yet
-      marketCap: 0, // No market cap initially
-      volume24h: 0, // No volume initially
-      category: 'NadFun', // Specific category for Nad.fun tokens
-      dominance: 0, // Will be calculated later
-      imageUrl: '', // Will attempt to fetch from tokenURI
+      price: estimatedMonPrice, // Use estimated price initially
+      change24h: 0,
+      marketCap: 0, // Needs trading volume to calculate accurately
+      volume24h: 0,
+      category: 'NadFun',
+      dominance: 0,
+      imageUrl: '', // Attempt to fetch from tokenURI
       backupImageUrl: undefined,
-      pairUrl: `https://nad.fun/token/${tokenAddress}`, // Example link
-      chainId: 'monad', // Assuming Monad
-      isStable: false, // Nad.fun tokens are not stablecoins
+      pairUrl: `https://nad.fun/token/${tokenAddress}`,
+      chainId: 'monad',
+      isStable: false,
     };
 
-    // Attempt to fetch image URL from tokenURI if possible (often it's a JSON file)
     if (tokenURI && tokenURI.startsWith('http')) {
         try {
             const metadataResponse = await fetch(tokenURI);
@@ -90,43 +126,67 @@ export const startListeningForNewTokens = (onNewToken: (token: Token) => void): 
             }
         } catch (error) {
              console.warn(`Could not fetch metadata for ${tokenAddress} from ${tokenURI}`, error);
-             // Fallback to a standard Nad.fun icon if metadata fails
-             // newToken.imageUrl = 'https://your-domain.com/path-to-nadfun-icon.png';
         }
+    }
+
+    // Fetch market data from BlockVision API for more accurate info if available
+    try {
+        const marketResponse = await blockvisionClient.get_monadtokenmarketdata({ token: tokenAddress });
+        if (marketResponse.code === 0 && marketResponse.result) {
+             const marketData = marketResponse.result;
+             newToken.price = parseFloat(marketData.priceInUsd || newToken.price.toString());
+             newToken.change24h = parseFloat(marketData.market?.hour24?.priceChange || '0');
+             newToken.marketCap = parseFloat(marketData.marketCap || '0');
+             newToken.volume24h = parseFloat(marketData.volume24H || '0');
+             newToken.fdv = parseFloat(marketData.fdvInUsd || '0');
+             newToken.liquidity = parseFloat(marketData.liquidityInUsd || '0');
+        }
+    } catch (bvError) {
+         console.warn(`Could not fetch BlockVision data for new token ${tokenAddress}:`, bvError);
+         // Keep the estimated data or default values
+    }
+
+    // Fetch token details from BlockVision API
+    try {
+        const detailResponse = await blockvisionClient.retrieveTokenDetail({ address: tokenAddress });
+        if (detailResponse.code === 0 && detailResponse.result) {
+             const detailData = detailResponse.result;
+             // Update name/symbol if they differ (BlockVision might have canonical names)
+             newToken.name = detailData.name || newToken.name;
+             newToken.symbol = detailData.symbol || newToken.symbol;
+             newToken.imageUrl = detailData.logo || newToken.imageUrl;
+             newToken.holders = detailData.holders || newToken.holders;
+             newToken.totalSupply = detailData.totalSupply || newToken.totalSupply;
+        }
+    } catch (bvDetailError) {
+         console.warn(`Could not fetch BlockVision details for new token ${tokenAddress}:`, bvDetailError);
+         // Keep the initial data
     }
 
     onNewToken(newToken);
   };
 
-  // Attach the listener to the contract
   contract.on('CurveCreate', listener);
   eventListenersSet = true;
 
   console.log("Started listening for new Nad.fun tokens...");
-  // Return the function to remove the listener
   return () => {
     if (contract) {
       contract.off('CurveCreate', listener);
       console.log("Stopped listening for new Nad.fun tokens.");
-      eventListenersSet = false; // Reset flag
+      eventListenersSet = false;
     }
   };
 };
 
-/**
- * Fetches recent Nad.fun token creations using logs (can be used for initial load or backup).
- * This might require paginated calls depending on the number of logs.
- */
 export const fetchRecentNadFunTokens = async (limit: number = 50): Promise<Token[]> => {
   const { provider } = initializeProviderAndContract();
   const iface = new ethers.Interface(BONDING_CURVE_ROUTER_ABI);
   const filter = iface.encodeFilterTopics('CurveCreate', []);
 
   try {
-    // Get logs from the last few thousand blocks as an example
-    // You might need a more sophisticated strategy for a large number of events
     const latestBlock = await provider.getBlockNumber();
-    const fromBlock = Math.max(0, latestBlock - 10000); // Adjust range as needed
+    const fromBlock = Math.max(0, latestBlock - 10000);
 
     const logs = await provider.getLogs({
       address: BONDING_CURVE_ROUTER_ADDRESS,
@@ -136,15 +196,16 @@ export const fetchRecentNadFunTokens = async (limit: number = 50): Promise<Token
     });
 
     const tokens: Token[] = [];
-    for (const log of logs.slice(-limit)) { // Take the last 'limit' logs
+    for (const log of logs.slice(-limit)) {
       const parsedLog = iface.parseLog(log);
       if (parsedLog) {
         const args = parsedLog.args;
+        // Create initial token object
         const token: Token = {
           id: args.token,
           name: args.name,
           symbol: args.symbol,
-          price: 0,
+          price: 0, // Will fetch from API
           change24h: 0,
           marketCap: 0,
           volume24h: 0,
@@ -156,7 +217,8 @@ export const fetchRecentNadFunTokens = async (limit: number = 50): Promise<Token
           chainId: 'monad',
           isStable: false,
         };
-         if (args.tokenURI && args.tokenURI.startsWith('http')) {
+
+        if (args.tokenURI && args.tokenURI.startsWith('http')) {
             try {
                 const metadataResponse = await fetch(args.tokenURI);
                 if (metadataResponse.ok) {
@@ -169,12 +231,40 @@ export const fetchRecentNadFunTokens = async (limit: number = 50): Promise<Token
                  console.warn(`Could not fetch metadata for ${token.id} from ${args.tokenURI}`, error);
             }
         }
+
+        // Fetch market and detail data from BlockVision
+        try {
+            const marketResponse = await blockvisionClient.get_monadtokenmarketdata({ token: token.id });
+            if (marketResponse.code === 0 && marketResponse.result) {
+                 const marketData = marketResponse.result;
+                 token.price = parseFloat(marketData.priceInUsd || '0');
+                 token.change24h = parseFloat(marketData.market?.hour24?.priceChange || '0');
+                 token.marketCap = parseFloat(marketData.marketCap || '0');
+                 token.volume24h = parseFloat(marketData.volume24H || '0');
+                 token.fdv = parseFloat(marketData.fdvInUsd || '0');
+                 token.liquidity = parseFloat(marketData.liquidityInUsd || '0');
+            }
+        } catch (bvError) {
+             console.warn(`Could not fetch BlockVision market data for ${token.id}:`, bvError);
+        }
+
+        try {
+            const detailResponse = await blockvisionClient.retrieveTokenDetail({ address: token.id });
+            if (detailResponse.code === 0 && detailResponse.result) {
+                 const detailData = detailResponse.result;
+                 token.name = detailData.name || token.name;
+                 token.symbol = detailData.symbol || token.symbol;
+                 token.imageUrl = detailData.logo || token.imageUrl;
+                 token.holders = detailData.holders || token.holders;
+                 token.totalSupply = detailData.totalSupply || token.totalSupply;
+            }
+        } catch (bvDetailError) {
+             console.warn(`Could not fetch BlockVision detail data for ${token.id}:`, bvDetailError);
+        }
+
         tokens.push(token);
       }
     }
-    // Sort by a hypothetical timestamp or block number descending (newest first)
-    // For now, logs are already recent based on the query, so we can return as is.
-    // A more complex sort might be needed if integrating live updates.
     return tokens;
   } catch (error) {
     console.error("Failed to fetch recent Nad.fun token logs:", error);
