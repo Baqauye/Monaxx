@@ -2,7 +2,7 @@
 import React, { useEffect, useRef } from 'react';
 import * as d3 from 'd3';
 import { Holder, Mood } from '../types';
-import { fetchTokenHolders } from '../services/monadService'; // Use the updated service
+import { fetchTokenHolders } from '../services/monadService';
 
 interface HolderMapProps {
   tokenAddress: string;
@@ -26,13 +26,12 @@ const HolderMap: React.FC<HolderMapProps> = ({ tokenAddress, width, height, mood
         }
 
         const svg = d3.select(svgRef.current);
-        svg.selectAll("*").remove(); // Clear previous render
+        svg.selectAll("*").remove();
 
         // --- D3 Force Simulation for Bubble Map ---
-        // Use percentage for radius calculation
         const maxPercentage = d3.max(data, d => d.percentage) || 1;
         const minRadius = 5;
-        const maxRadius = width < 600 ? 30 : 50; // Adjust for mobile
+        const maxRadius = width < 600 ? 30 : 50;
         const radiusScale = d3.scaleSqrt()
             .domain([0, maxPercentage])
             .range([minRadius, maxRadius]);
@@ -45,7 +44,7 @@ const HolderMap: React.FC<HolderMapProps> = ({ tokenAddress, width, height, mood
         }));
 
         const simulation = d3.forceSimulation(nodes as any)
-            .force("charge", d3.forceManyBody().strength(-50)) // Repulsion
+            .force("charge", d3.forceManyBody().strength(-50))
             .force("center", d3.forceCenter(width / 2, height / 2))
             .force("collision", d3.forceCollide().radius((d: any) => d.r + 2).strength(0.8))
             .force("x", d3.forceX(width / 2).strength(0.05))
@@ -86,7 +85,7 @@ const HolderMap: React.FC<HolderMapProps> = ({ tokenAddress, width, height, mood
             .attr("stroke-opacity", 0.5)
             .style("filter", mood === 'Professional' ? "drop-shadow(0 0 4px rgba(255,255,255,0.2))" : "none");
 
-        node.filter((d: any) => d.r > 20) // Only label large nodes
+        node.filter((d: any) => d.r > 20)
             .append("text")
             .text((d: any) => `${d.percentage.toFixed(2)}%`)
             .attr("text-anchor", "middle")
@@ -112,7 +111,7 @@ const HolderMap: React.FC<HolderMapProps> = ({ tokenAddress, width, height, mood
     loadAndRender();
 
     return () => {
-        // Cleanup simulation if needed, though D3 handles most of it
+        // Cleanup simulation if needed
         // const simulation = ... (if stored)
         // simulation?.stop();
     };
