@@ -1,14 +1,12 @@
 // App.tsx
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { PLAYFUL_COLORS, PROFESSIONAL_COLORS } from './constants';
 import { Token, Protocol, Mood, ViewMode } from './types';
 import Treemap from './components/Treemap';
 import DetailModal from './components/DetailModal';
 import HolderMap from './components/HolderMap';
-import NadFunTreemap from './components/NadFunTreemap';
-import ProtocolTreemap from './components/ProtocolTreemap'; // Import new component
+import ProtocolTreemap from './components/ProtocolTreemap';
 import { fetchMonadTokens } from './services/monadService';
-import { fetchRecentNadFunTokens, startListeningForNewTokens } from './services/nadfunService';
 
 // Simple SVG components without unused props
 const BarChart2Icon = () => (
@@ -57,13 +55,13 @@ const NetworkIcon = () => (
 );
 
 const App: React.FC = () => {
-  const [viewMode, setViewMode] = useState<ViewMode>('Tokens'); // Default to Tokens
+  const [viewMode, setViewMode] = useState<ViewMode>('Tokens');
   const [tokens, setTokens] = useState<Token[]>([]);
-  const [protocols, setProtocols] = useState<Protocol[]>([]); // State for protocols
+  const [protocols, setProtocols] = useState<Protocol[]>([]);
   const [filteredTokens, setFilteredTokens] = useState<Token[]>([]);
   const [mood, setMood] = useState<Mood>('Playful');
   const [selectedToken, setSelectedToken] = useState<Token | null>(null);
-  const [selectedProtocol, setSelectedProtocol] = useState<Protocol | null>(null); // State for selected protocol
+  const [selectedProtocol, setSelectedProtocol] = useState<Protocol | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const [isDataLoading, setIsDataLoading] = useState(true);
@@ -126,7 +124,6 @@ const App: React.FC = () => {
         const interval = setInterval(loadProtocolData, 60000);
         return () => clearInterval(interval);
     }
-    // NadFunTokens handles its own loading/listening
   }, [viewMode]);
 
   useEffect(() => {
@@ -164,14 +161,6 @@ const App: React.FC = () => {
                     mood={mood}
                     onTileClick={setSelectedProtocol}
                     selectedId={selectedProtocol?.id}
-                />
-            );
-        case 'NadFunTokens':
-            return (
-                <NadFunTreemap
-                    mood={mood}
-                    onTileClick={setSelectedToken}
-                    selectedId={selectedToken?.id}
                 />
             );
         case 'HoldersMap':
@@ -227,8 +216,6 @@ const App: React.FC = () => {
               return 'Monad Ecosystem Tokens';
           case 'HoldersMap':
               return 'Token Holder Distribution';
-          case 'NadFunTokens':
-              return 'Nad.fun Token Creations';
           case 'Protocols':
               return 'Monad DeFi Protocols';
           default:
@@ -236,7 +223,6 @@ const App: React.FC = () => {
       }
   };
 
-  // Determine the content for the search bar area based on the current view mode
   const renderSearchBarContent = () => {
       if (viewMode === 'HoldersMap') {
           return (
@@ -255,14 +241,7 @@ const App: React.FC = () => {
                       Scan
                   </button>
               </form>
-          );
-      } else if (viewMode === 'NadFunTokens') {
-          return (
-              <div className="text-sm opacity-50">
-                  Live Nad.fun creations
-              </div>
-          );
-      } else if (viewMode === 'Protocols') {
+          ) } else if (viewMode === 'Protocols') {
           return (
               <div className="text-sm opacity-50">
                   DeFi protocol activity
@@ -297,17 +276,16 @@ const App: React.FC = () => {
              {renderSearchBarContent()}
           </div>
           <div className="flex items-center gap-2">
-            {/* Toggle View Mode Button - Cycle through views */}
+            {/* Toggle View Mode Button */}
             <button
               onClick={() => {
-                  // Cycle through the views: Tokens -> NadFunTokens -> Protocols -> HoldersMap -> Tokens ...
-                  const modes: ViewMode[] = ['Tokens', 'NadFunTokens', 'Protocols', 'HoldersMap'];
+                  const modes: ViewMode[] = ['Tokens', 'HoldersMap', 'Protocols'];
                   const currentIndex = modes.indexOf(viewMode);
                   const nextIndex = (currentIndex + 1) % modes.length;
                   setViewMode(modes[nextIndex]);
               }}
               className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-bold transition-all ${
-                viewMode !== 'Tokens' // Any mode other than 'Tokens' gets highlighted
+                viewMode !== 'Tokens'
                   ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300'
                   : 'hover:bg-black/5 dark:hover:bg-white/5 opacity-70'
               }`}
@@ -316,8 +294,7 @@ const App: React.FC = () => {
               <NetworkIcon />
               <span className="hidden sm:inline">
                   {viewMode === 'Tokens' ? 'Tokens' :
-                   viewMode === 'NadFunTokens' ? 'Nad.fun' :
-                   viewMode === 'Protocols' ? 'Protocols' : 'Holders'}
+                   viewMode === 'HoldersMap' ? 'Holders' : 'Protocols'}
               </span>
             </button>
             <button
@@ -335,8 +312,7 @@ const App: React.FC = () => {
       </header>
       <main className="flex-1 p-2 sm:p-4 md:p-6 max-w-[1600px] w-full mx-auto flex flex-col gap-4">
 
-        {/* Mobile Search Bar / Info */}
-        {(viewMode === 'HoldersMap' || viewMode === 'NadFunTokens' || viewMode === 'Protocols') && (
+        {(viewMode === 'HoldersMap' || viewMode === 'Protocols') && (
              <div className="md:hidden mb-4">
                 {viewMode === 'HoldersMap' && (
                     <form onSubmit={handleSearch} className="w-full flex items-center">
@@ -349,11 +325,6 @@ const App: React.FC = () => {
                         />
                         <button type="submit" className="px-4 py-2 rounded-r-lg bg-indigo-600 text-white">Scan</button>
                     </form>
-                )}
-                {viewMode === 'NadFunTokens' && (
-                    <div className="text-sm opacity-50 text-center">
-                        Monitoring Nad.fun Creations...
-                    </div>
                 )}
                  {viewMode === 'Protocols' && (
                     <div className="text-sm opacity-50 text-center">
@@ -368,7 +339,7 @@ const App: React.FC = () => {
           </h2>
           <div className="flex items-center gap-2 text-xs">
             <span className={`w-2 h-2 rounded-full ${isDataLoading ? 'bg-yellow-500 animate-pulse' : 'bg-green-500'}`}></span>
-            {isDataLoading ? 'Updating...' : (viewMode === 'NadFunTokens' ? 'Live Feed' : 'Live Data')}
+            {isDataLoading ? 'Updating...' : 'Live Data'}
           </div>
         </div>
         <div
@@ -381,10 +352,9 @@ const App: React.FC = () => {
         >
           {renderMainContent()}
         </div>
-        {/* Category Filter - Only for Tokens view */}
         {viewMode === 'Tokens' && (
             <div className="flex flex-wrap justify-center gap-2 pb-8">
-                {['All', 'Meme', 'AI', 'DeFi', 'Staked', 'Wrapped', 'Stable'].map(cat => (
+                {['All', 'Stable', 'Meme', 'AI', 'DeFi', 'Staked', 'Wrapped'].map(cat => ( // Added 'Stable' category
                     <button
                         key={cat}
                         onClick={() => setSelectedCategory(cat)}
@@ -400,7 +370,6 @@ const App: React.FC = () => {
             </div>
         )}
       </main>
-      {/* Detail Modals - Can be for Token or Protocol */}
       {selectedToken && (
           <DetailModal
             token={selectedToken}
@@ -408,8 +377,8 @@ const App: React.FC = () => {
             mood={mood}
           />
       )}
-      {/* Add a Protocol Detail Modal if needed, for now just log or set a state if selectedProtocol changes */}
-      {selectedProtocol && console.log("Selected Protocol:", selectedProtocol) /* Replace with ProtocolDetailModal */}
+      {/* Add a Protocol Detail Modal if needed */}
+      {selectedProtocol && console.log("Selected Protocol:", selectedProtocol)}
     </div>
   );
 };
