@@ -31,135 +31,133 @@ const TokenTile: React.FC<TokenTileProps> = ({ token, width, height, mood, onCli
     }
   };
 
-  const isPositive = token.change24h >= 0;
-  const isLargeEnough = width > 80 && height > 60; // Define a threshold for showing detailed info
+  // Ensure change24h is a number for comparison
+  const change24hNum = parseFloat(token.change24h?.toString() || '0');
+  const isPositive = change24hNum >= 0;
 
-  const containerStyle = {
-    width: `${width}px`,
-    height: `${height}px`,
-    opacity: dimmed ? 0.3 : 1,
-    transition: 'opacity 0.2s ease',
-    padding: mood === 'Playful' ? '4px' : '2px',
-    boxSizing: 'border-box' as const,
+  // Define colors based on mood
+  const bgColor = isPositive
+    ? (mood === 'Playful' ? '#f0fdf4' : '#34d399') // Light green / Bright green
+    : (mood === 'Playful' ? '#fef2f2' : '#f87171'); // Light red / Bright red
+
+  const textColor = isPositive
+    ? (mood === 'Playful' ? '#064e3b' : '#f0fdf4') // Dark green / White
+    : (mood === 'Playful' ? '#991b1b' : '#fff0f2'); // Dark red / Light red
+
+  // Calculate font size based on tile size
+  const fontSize = Math.min(width / 5, height / 4, 24);
+  const smallFontSize = Math.max(fontSize * 0.6, 10);
+  const showText = width > 40 && height > 40;
+  const showDetail = width > 80 && height > 60;
+  const imgSize = Math.min(width * 0.4, height * 0.4, 60);
+  const showImage = width > 50 && height > 50;
+
+  const handleMouseEnter = () => {
+    onHover(true);
   };
 
-  const cardStyle = {
-    width: '100%',
-    height: '100%',
-    display: 'flex',
-    flexDirection: 'column' as const,
-    justifyContent: isLargeEnough ? 'space-between' : 'flex-start',
-    alignItems: 'flex-start',
-    padding: mood === 'Playful' ? '8px' : '4px',
-    borderRadius: mood === 'Playful' ? '16px' : '2px',
-    background: mood === 'Playful' ? 'linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(0,0,0,0.05) 100%)' : 'rgba(30, 41, 59, 0.6)',
-    border: mood === 'Playful' ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(255,255,255,0.05)',
-    backdropFilter: mood === 'Playful' ? 'blur(10px)' : 'blur(4px)',
-    cursor: 'pointer',
-    overflow: 'hidden',
-  };
-
-  const symbolStyle = {
-    fontSize: mood === 'Playful' ? (width > 120 ? '1.2em' : '1em') : (width > 120 ? '0.9em' : '0.8em'),
-    fontWeight: 'bold' as const,
-    color: mood === 'Playful' ? '#334155' : '#cbd5e1',
-    textShadow: mood === 'Playful' ? '0 1px 2px rgba(255,255,255,0.5)' : 'none',
-    whiteSpace: 'nowrap' as const,
-    overflow: 'hidden' as const,
-    textOverflow: 'ellipsis' as const,
-  };
-
-  const nameStyle = {
-    fontSize: mood === 'Playful' ? '0.75em' : '0.65em',
-    color: mood === 'Playful' ? '#64748b' : '#94a3b8',
-    whiteSpace: 'nowrap' as const,
-    overflow: 'hidden' as const,
-    textOverflow: 'ellipsis' as const,
-    marginTop: '2px',
-  };
-
-  const priceStyle = {
-    fontSize: mood === 'Playful' ? '0.9em' : '0.8em',
-    fontWeight: 'bold' as const,
-    color: mood === 'Playful' ? (isPositive ? '#10b981' : '#ef4444') : (isPositive ? '#34d399' : '#f87171'),
-    marginTop: isLargeEnough ? 'auto' : '4px',
-  };
-
-  const statsStyle = {
-    fontSize: mood === 'Playful' ? '0.75em' : '0.65em',
-    color: mood === 'Playful' ? '#94a3b8' : '#64748b',
-    marginTop: '2px',
-  };
-
-  const imgStyle = {
-    width: mood === 'Playful' ? '24px' : '20px',
-    height: mood === 'Playful' ? '24px' : '20px',
-    borderRadius: '50%',
-    objectFit: 'cover' as const,
-    alignSelf: 'flex-end',
-    marginBottom: mood === 'Playful' ? '4px' : '2px',
-  };
-
-  // Format price to be human-readable
-  const formatPrice = (p: number) => {
-    if (p < 0.000001) return p.toExponential(4);
-    if (p < 0.01) return p.toFixed(6);
-    if (p < 1) return p.toFixed(4);
-    return p.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const handleMouseLeave = () => {
+    onHover(false);
   };
 
   return (
     <div
       ref={containerRef}
-      style={containerStyle}
-      onMouseEnter={() => onHover(true)}
-      onMouseLeave={() => onHover(false)}
       onClick={() => onClick(token)}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+      style={{
+        width: `${width}px`,
+        height: `${height}px`,
+        backgroundColor: bgColor,
+        color: textColor,
+        opacity: dimmed ? 0.3 : 1,
+        filter: dimmed ? 'grayscale(0.6) blur(1px)' : 'none',
+        transform: dimmed ? 'scale(0.95)' : 'scale(1)',
+        zIndex: dimmed ? 1 : 20,
+        transition: 'all 0.4s cubic-bezier(0.2, 0.8, 0.2, 1)',
+        cursor: 'pointer',
+        borderRadius: mood === 'Playful' ? '16px' : '2px',
+        border: mood === 'Playful' ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(255,255,255,0.05)',
+        backdropFilter: mood === 'Playful' ? 'blur(10px)' : 'blur(4px)',
+        display: 'flex',
+        flexDirection: 'column' as const,
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: mood === 'Playful' ? '8px' : '4px',
+        boxSizing: 'border-box' as const,
+        overflow: 'hidden',
+      }}
+      className={`relative overflow-hidden cursor-pointer shadow-sm ${mood === 'Playful' ? 'rounded-2xl border-4 border-white/20' : 'rounded-none border border-black/10'} flex flex-col items-center justify-center text-center p-1`}
     >
-      <div style={cardStyle}>
-        <div style={{ display: 'flex', alignItems: 'center', width: '100%' }}>
-          {currentImgSrc && !imageError ? (
-            <img
-              src={currentImgSrc}
-              alt={token.name}
-              style={imgStyle}
-              onError={handleImageError}
-            />
-          ) : imageError ? (
-            <div style={{
-              ...imgStyle,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              backgroundColor: mood === 'Playful' ? '#e2e8f0' : '#1e293b',
-              color: mood === 'Playful' ? '#64748b' : '#94a3b8',
-              fontSize: '0.7em',
-              borderRadius: '50%',
-            }}>
-              ?
-            </div>
-          ) : (
-            <div style={{ ...imgStyle, backgroundColor: 'transparent' }} /> // Placeholder to keep alignment
-          )}
-          <div style={{ flex: 1, marginLeft: '6px' }}>
-            <div style={symbolStyle}>{token.symbol}</div>
-            {isLargeEnough && <div style={nameStyle}>{token.name}</div>}
+      {showImage && currentImgSrc && !imageError && (
+        <img
+          src={currentImgSrc}
+          alt={token.name}
+          style={{
+            width: `${imgSize}px`,
+            height: `${imgSize}px`,
+            borderRadius: '50%',
+            objectFit: 'cover',
+            marginBottom: '4px',
+          }}
+          onError={handleImageError}
+        />
+      )}
+      {showText && (
+        <div style={{ textAlign: 'center', width: '100%' }}>
+          <div
+            style={{
+              fontSize: `${fontSize}px`,
+              fontWeight: 'bold' as const,
+              whiteSpace: 'nowrap' as const,
+              overflow: 'hidden' as const,
+              textOverflow: 'ellipsis' as const,
+              marginBottom: '2px',
+            }}
+          >
+            {token.symbol}
           </div>
+          {showDetail && (
+            <>
+              <div
+                style={{
+                  fontSize: `${smallFontSize}px`,
+                  whiteSpace: 'nowrap' as const,
+                  overflow: 'hidden' as const,
+                  textOverflow: 'ellipsis' as const,
+                  marginBottom: '2px',
+                }}
+              >
+                {token.name}
+              </div>
+              <div
+                style={{
+                  fontSize: `${smallFontSize}px`,
+                  fontWeight: 'bold' as const,
+                  whiteSpace: 'nowrap' as const,
+                  overflow: 'hidden' as const,
+                  textOverflow: 'ellipsis' as const,
+                  marginBottom: '2px',
+                }}
+              >
+                ${token.price.toFixed(4)} {/* Format price to 4 decimal places */}
+              </div>
+              <div
+                style={{
+                  fontSize: `${smallFontSize}px`,
+                  fontWeight: 'bold' as const,
+                  whiteSpace: 'nowrap' as const,
+                  overflow: 'hidden' as const,
+                  textOverflow: 'ellipsis' as const,
+                }}
+              >
+                {isPositive ? '+' : ''}{change24hNum.toFixed(2)}% {/* Use the number version for formatting */}
+              </div>
+            </>
+          )}
         </div>
-        {isLargeEnough && (
-          <>
-            <div style={priceStyle}>
-              ${formatPrice(token.price)}
-              <span style={{ fontSize: '0.8em', marginLeft: '4px' }}>
-                {isPositive ? '↑' : '↓'}{Math.abs(token.change24h).toFixed(2)}%
-              </span>
-            </div>
-            <div style={statsStyle}>
-              MC: ${formatCompactNumber(token.marketCap)}
-            </div>
-          </>
-        )}
-      </div>
+      )}
     </div>
   );
 };
