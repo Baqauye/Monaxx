@@ -90,7 +90,7 @@ const fetchTokenImage = async (tokenAddress: string): Promise<string | null> => 
 
 /**
  * Calculates a composite score for a token to determine its ranking.
- * The score combines market cap, volume, and 24h change, while penalizing low activity.
+ * The score combines market cap, volume, and 24h change, while penalizing low activity or potential honeypots.
  * @param marketCap - The token's market cap.
  * @param volume24 - The token's 24-hour trading volume.
  * @param change24 - The token's 24-hour price change percentage.
@@ -102,40 +102,47 @@ const calculateTokenScore = (marketCap: number, volume24: number, change24: numb
     return 0;
   }
 
-  // Normalize values to prevent any single metric from dominating
-  const normalizedMarketCap = Math.log(marketCap + 1); // Logarithmic scale for market cap
-  const normalizedVolume = Math.log(volume24 + 1);     // Logarithmic scale for volume
+  // --- Scoring Components ---
+  // 1. Market Cap: Logarithmic scale to handle wide ranges, weighted heavily
+  const normalizedMarketCap = Math.log(marketCap + 1) * 0.4;
 
-  // Calculate a base score using weighted average
-  const baseScore = (normalizedMarketCap * 0.6) + (normalizedVolume * 0.3);
+  // 2. Volume: Logarithmic scale, weighted significantly
+  const normalizedVolume = Math.log(volume24 + 1) * 0.3;
 
-  // Add bonus for positive momentum (change24 > 0) and penalize negative momentum
-  const momentumBonus = change24 > 0 ? change24 * 0.1 : change24 * 0.05;
+  // 3. Price Change: Absolute value for magnitude, positive for momentum, negative for volatility penalty
+  const changeMagnitude = Math.abs(change24) * 0.2; // Weight for magnitude
+  const momentumBonus = change24 > 0 ? change24 * 0.1 : change24 * 0.05; // Bonus for positive, penalty for negative
 
-  // Apply a small penalty for very low volume relative to market cap (potential honeypot indicator)
+  // 4. Honeypot/Activity Penalty: Check volume-to-market-cap ratio
   const volumeToMarketCapRatio = volume24 / marketCap;
-  const honeypotPenalty = volumeToMarketCapRatio < 0.01 ? -10 : 0;
+  const activityPenalty = volumeToMarketCapRatio < 0.001 ? -50 : 0; // Severe penalty for very low activity relative to size
+  // Optional: Mild penalty for low absolute volume even if ratio is okay
+  const lowVolumePenalty = volume24 < 100 ? -10 : 0;
 
-  // Final score
-  return baseScore + momentumBonus + honeypotPenalty;
+  // --- Final Score Calculation ---
+  const score = normalizedMarketCap + normalizedVolume + changeMagnitude + momentumBonus + activityPenalty + lowVolumePenalty;
+
+  // Ensure score is not negative due to penalties
+  return Math.max(score, 0);
 };
 
 /**
  * Fetches live token data for the Monad network.
- * Applies strict filtering to exclude junk tokens and uses a composite score for ranking.
+ * Applies strict filtering to exclude junk tokens, stablecoins, and potential honeypots.
+ * Uses a composite score for ranking based on market cap, volume, price change, and activity.
  */
 export const fetchMonadTokens = async (): Promise<Token[]> => {
-  // Query for Monad Testnet (143) with liquidity filter
+  // Query for Monad (assuming network ID 143) with liquidity filter
   const query = `
     query MonadTokens {
       filterTokens(
         filters: {
           network: [143]
-          liquidity: { gt: 1000 }
+          liquidity: { gt: 1000 } // Filter for some minimum liquidity
         }
-        limit: 150
+        limit: 200 // Fetch more initially to allow for filtering
         rankings: {
-          attribute: trendingScore24
+          attribute: trendingScore24 // Or marketCap, volume24
           direction: DESC
         }
       ) {
@@ -186,20 +193,30 @@ export const fetchMonadTokens = async (): Promise<Token[]> => {
         const s = t.symbol.toUpperCase();
         const n = t.name.toUpperCase();
 
-        // STRICT FILTERING: Exclude tokens with junk keywords
-        const junkKeywords = ['FAUCET', 'TEST', 'MOCK', 'EXAMPLE', 'DEMO', 'NFT'];
+        // --- Filtering Criteria ---
+        // 1. Exclude junk keywords (including the unwanted tokens you specified)
+        const junkKeywords = ['FAUCET', 'TEST', 'MOCK', 'EXAMPLE', 'DEMO', 'NFT', 'MUBOND', 'SHMON', 'AZND', 'LOAZND'];
         if (junkKeywords.some(keyword => n.includes(keyword) || s.includes(keyword))) {
           return false;
         }
 
-        // Filter out tokens with zero or near-zero 24h volume (inactive/honeypot)
-        if (item.volume24 <= 10) {
+        // 2. Exclude stablecoins (if desired, uncomment the next line)
+        // if (isStableCoin(t.symbol, t.name)) return false;
+
+        // 3. Filter out tokens with very low volume (indicates low activity)
+        if (parseFloat(item.volume24 || '0') < 10) {
           return false;
         }
 
-        // Filter out tokens with extremely low market cap (less than $100)
-        if (item.marketCap < 100) {
+        // 4. Filter out tokens with extremely low market cap
+        if (parseFloat(item.marketCap || '0') < 100) {
           return false;
+        }
+
+        // 5. Potentially filter out tokens with 0% change and very low volume (dormant)
+        const change24Num = parseFloat(item.change24 || '0') * 100;
+        if (change24Num === 0 && parseFloat(item.volume24 || '0') < 50) {
+             return false;
         }
 
         return true;
@@ -209,13 +226,13 @@ export const fetchMonadTokens = async (): Promise<Token[]> => {
         const info = t.info || {};
 
         const price = parseFloat(item.priceUSD || '0');
-        const change = parseFloat(item.change24 || '0') * 100;
-        let mcap = parseFloat(item.marketCap || '0');
-        const volume = parseFloat(item.volume24 || '0');
+        const change24h = parseFloat(item.change24 || '0') * 100; // Codex gives fraction, convert to %
+        let marketCap = parseFloat(item.marketCap || '0');
+        const volume24h = parseFloat(item.volume24 || '0');
 
-        // Fallback for market cap calculation if it's zero
-        if (mcap === 0 && price > 0) {
-          mcap = volume * 10;
+        // Fallback for market cap calculation if it's zero (though filtering should catch most)
+        if (marketCap === 0 && price > 0 && volume24h > 0) {
+          marketCap = volume24h * 10; // Example fallback logic
         }
 
         const isStable = isStableCoin(t.symbol, t.name);
@@ -234,18 +251,18 @@ export const fetchMonadTokens = async (): Promise<Token[]> => {
         }
 
         // Calculate the composite score for ranking
-        const score = calculateTokenScore(mcap, volume, change);
+        const score = calculateTokenScore(marketCap, volume24h, change24h);
 
         return {
           id: t.address,
           symbol: t.symbol,
           name: t.name,
           price: price,
-          change24h: change,
-          marketCap: mcap,
-          volume24h: volume,
+          change24h: change24h,
+          marketCap: marketCap,
+          volume24h: volume24h,
           category: guessCategory(t.symbol, t.name),
-          dominance: 0, // Will be calculated later
+          dominance: 0, // Will be calculated later based on filtered/scored list
           imageUrl: imageUrl,
           backupImageUrl: codexImage,
           pairUrl: `https://www.defined.fi/monad/${t.address}`,
@@ -258,7 +275,7 @@ export const fetchMonadTokens = async (): Promise<Token[]> => {
     // Sort tokens by the calculated score in descending order
     tokens.sort((a, b) => b.score - a.score);
 
-    // Calculate total market cap for dominance calculation
+    // Calculate total market cap for dominance calculation based on the final, ranked list
     const totalMcap = tokens.reduce((sum, t) => sum + t.marketCap, 0);
 
     // Calculate dominance for each token
