@@ -15,9 +15,6 @@ export interface Token {
   chainId?: string;
   isStable?: boolean; // New field for stablecoins
   score?: number; // Added for ranking algorithm
-  decimals?: number; // From BlockVision
-  totalSupply?: string; // From BlockVision
-  liquidity?: number; // From Codex
 }
 
 export interface Holder {
@@ -29,7 +26,7 @@ export interface Holder {
   connections?: string[]; // IDs of other holders this wallet interacted with
 }
 
-export type ViewMode = 'Tokens' | 'HoldersMap' | 'Protocols'; // Update ViewMode
+export type ViewMode = 'TreeMap' | 'BubbleMap'; // Reverted ViewMode
 export type Mood = 'Professional' | 'Playful';
 
 export interface MarketSummary {
