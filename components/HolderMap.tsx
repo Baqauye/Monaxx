@@ -1,5 +1,5 @@
-// components/HolderMap.tsx (Updated to use BlockVision data)
-import React, { useEffect, useRef } from 'react';
+// components/HolderMap.tsx
+import React, { useEffect, useRef, useState } from 'react';
 import * as d3 from 'd3';
 import { Holder, Mood } from '../types';
 import { fetchTokenHolders } from '../services/monadService';
@@ -13,109 +13,154 @@ interface HolderMapProps {
 
 const HolderMap: React.FC<HolderMapProps> = ({ tokenAddress, width, height, mood }) => {
   const svgRef = useRef<SVGSVGElement>(null);
+  const [data, setData] = useState<Holder[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!tokenAddress || !svgRef.current) return;
+    if (!tokenAddress) return;
+    const loadData = async () => {
+      setLoading(true);
+      setError(null);
+      setData([]);
 
-    const loadAndRender = async () => {
       try {
-        const data = await fetchTokenHolders(tokenAddress);
-        if (!data.length) {
-            console.log("No holder data found for", tokenAddress);
-            return;
-        }
-
-        const svg = d3.select(svgRef.current);
-        svg.selectAll("*").remove();
-
-        // --- D3 Force Simulation for Bubble Map ---
-        const maxPercentage = d3.max(data, d => d.percentage) || 1;
-        const minRadius = 5;
-        const maxRadius = width < 600 ? 30 : 50;
-        const radiusScale = d3.scaleSqrt()
-            .domain([0, maxPercentage])
-            .range([minRadius, maxRadius]);
-
-        const nodes = data.map(d => ({
-            ...d,
-            x: width / 2 + (Math.random() - 0.5) * 50,
-            y: height / 2 + (Math.random() - 0.5) * 50,
-            r: radiusScale(d.percentage)
-        }));
-
-        const simulation = d3.forceSimulation(nodes as any)
-            .force("charge", d3.forceManyBody().strength(-50))
-            .force("center", d3.forceCenter(width / 2, height / 2))
-            .force("collision", d3.forceCollide().radius((d: any) => d.r + 2).strength(0.8))
-            .force("x", d3.forceX(width / 2).strength(0.05))
-            .force("y", d3.forceY(height / 2).strength(0.05));
-
-        const node = svg.append("g")
-            .selectAll("g")
-            .data(nodes)
-            .join("g")
-            .call(d3.drag<any, any>()
-                .on("start", (event, d) => {
-                    if (!event.active) simulation.alphaTarget(0.3).restart();
-                    d.fx = d.x;
-                    d.fy = d.y;
-                })
-                .on("drag", (event, d) => {
-                    d.fx = event.x;
-                    d.fy = event.y;
-                })
-                .on("end", (event, d) => {
-                    if (!event.active) simulation.alphaTarget(0);
-                    d.fx = null;
-                    d.fy = null;
-                })
-            );
-
-        const colorScale = d3.scaleOrdinal(
-          mood === 'Playful'
-            ? ['#f472b6', '#c084fc', '#818cf8', '#22d3ee', '#34d399']
-            : ['#3b82f6', '#8b5cf6', '#ec4899', '#10b981', '#f59e0b']
-        );
-
-        node.append("circle")
-            .attr("r", (d: any) => d.r)
-            .attr("fill", (d: any) => d.isContract ? (mood === 'Playful' ? '#fbbf24' : '#f59e0b') : colorScale(d.address))
-            .attr("stroke", "#fff")
-            .attr("stroke-width", 1.5)
-            .attr("stroke-opacity", 0.5)
-            .style("filter", mood === 'Professional' ? "drop-shadow(0 0 4px rgba(255,255,255,0.2))" : "none");
-
-        node.filter((d: any) => d.r > 20)
-            .append("text")
-            .text((d: any) => `${d.percentage.toFixed(2)}%`)
-            .attr("text-anchor", "middle")
-            .attr("dy", "0.35em")
-            .attr("fill", "white")
-            .attr("font-size", (d: any) => Math.min(d.r * 0.4, 12))
-            .attr("font-weight", "bold")
-            .attr("pointer-events", "none");
-
-        node.append("title")
-            .text((d: any) => `${d.address}\nBalance: ${d.balance}\nPercentage: ${d.percentage.toFixed(4)}%`);
-
-        simulation.on("tick", () => {
-            node
-                .attr("transform", (d: any) => `translate(${d.x},${d.y})`);
-        });
-
-      } catch (error) {
-        console.error("Error rendering HolderMap:", error);
+        const holders = await fetchTokenHolders(tokenAddress);
+        setData(holders);
+      } catch (err) {
+        setError("Failed to load holder data.");
+        console.error(err);
+      } finally {
+        setLoading(false);
       }
     };
+    loadData();
+  }, [tokenAddress]);
 
-    loadAndRender();
+  useEffect(() => {
+    if (!data.length || !svgRef.current) return;
+    const svg = d3.select(svgRef.current);
+    svg.selectAll("*").remove();
+
+    const colorScale = d3.scaleOrdinal(
+      mood === 'Playful'
+        ? ['#f472b6', '#c084fc', '#818cf8', '#22d3ee', '#34d399']
+        : ['#3b82f6', '#8b5cf6', '#ec4899', '#10b981', '#f59e0b']
+    );
+
+    // Create nodes with properties for D3 simulation
+    const nodes = data.map(d => ({
+      ...d,
+      r: Math.max(Math.sqrt(d.percentage) * (width < 600 ? 15 : 25), 4),
+      x: width / 2 + (Math.random() - 0.5) * 50,
+      y: height / 2 + (Math.random() - 0.5) * 50
+    }));
+
+    // Create links between connected holders (simulated or from API)
+    const links: any[] = [];
+    // Example: Add random links (replace with real data if available)
+    // for (let i = 0; i < nodes.length; i++) {
+    //   if (Math.random() > 0.7 && i < nodes.length - 1) {
+    //     links.push({ source: nodes[i], target: nodes[i + 1] });
+    //   }
+    // }
+
+    // Set up D3 force simulation
+    const simulation = d3.forceSimulation(nodes as any)
+      .force("charge", d3.forceManyBody().strength(-20))
+      .force("center", d3.forceCenter(width / 2, height / 2))
+      .force("collide", d3.forceCollide().radius((d: any) => d.r + 2).strength(0.7))
+      .force("link", d3.forceLink(links).distance(100).strength(0.2))
+      .force("x", d3.forceX(width / 2).strength(0.05))
+      .force("y", d3.forceY(height / 2).strength(0.05));
+
+    // Draw links
+    const link = svg.append("g")
+      .attr("stroke", mood === 'Playful' ? "#cbd5e1" : "#334155")
+      .attr("stroke-opacity", 0.6)
+      .selectAll("line")
+      .data(links)
+      .join("line")
+      .attr("stroke-width", 1);
+
+    // Draw nodes
+    const node = svg.append("g")
+      .selectAll("g")
+      .data(nodes)
+      .join("g")
+      .call(d3.drag<any, any>()
+        .on("start", (event, d) => {
+          if (!event.active) simulation.alphaTarget(0.3).restart();
+          d.fx = d.x;
+          d.fy = d.y;
+        })
+        .on("drag", (event, d) => {
+          d.fx = event.x;
+          d.fy = event.y;
+        })
+        .on("end", (event, d) => {
+          if (!event.active) simulation.alphaTarget(0);
+          d.fx = null;
+          d.fy = null;
+        })
+      );
+
+    // Draw circles for nodes
+    node.append("circle")
+      .attr("r", (d: any) => d.r)
+      .attr("fill", (d: any) => d.isContract ? (mood === 'Playful' ? '#fbbf24' : '#f59e0b') : colorScale(d.address))
+      .attr("stroke", "#fff")
+      .attr("stroke-width", 1.5)
+      .attr("stroke-opacity", 0.5)
+      .style("filter", mood === 'Professional' ? "drop-shadow(0 0 4px rgba(255,255,255,0.2))" : "none");
+
+    // Add labels for large nodes or labeled nodes
+    node.filter((d: any) => d.r > 20 || d.label)
+      .append("text")
+      .text((d: any) => d.label || `${d.percentage.toFixed(1)}%`)
+      .attr("text-anchor", "middle")
+      .attr("dy", "0.35em")
+      .attr("fill", "white")
+      .attr("font-size", (d: any) => Math.min(d.r * 0.8, 12))
+      .attr("font-weight", "bold")
+      .attr("pointer-events", "none");
+
+    // Add tooltips
+    node.append("title")
+      .text((d: any) => `${d.label ? d.label + '\n' : ''}${d.address}\nBalance: ${d.balance.toLocaleString()} (${d.percentage.toFixed(2)}%)`);
+
+    // Update positions on each tick
+    simulation.on("tick", () => {
+      link
+        .attr("x1", (d: any) => d.source.x)
+        .attr("y1", (d: any) => d.source.y)
+        .attr("x2", (d: any) => d.target.x)
+        .attr("y2", (d: any) => d.target.y);
+      node
+        .attr("transform", (d: any) => `translate(${d.x},${d.y})`);
+    });
 
     return () => {
-        // Cleanup simulation if needed
-        // const simulation = ... (if stored)
-        // simulation?.stop();
+      simulation.stop();
     };
-  }, [tokenAddress, width, height, mood]);
+  }, [data, width, height, mood]);
+
+  if (loading) {
+    return (
+      <div className="w-full h-full flex flex-col items-center justify-center">
+        <div className={`w-12 h-12 rounded-full border-4 border-t-transparent animate-spin ${mood === 'Playful' ? 'border-indigo-500' : 'border-purple-500'}`}></div>
+        <div className="mt-4 opacity-60 font-mono">Scanning Ledger...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="w-full h-full flex items-center justify-center text-red-500 font-bold">
+        {error}
+      </div>
+    );
+  }
 
   if (!tokenAddress) {
     return (
@@ -137,7 +182,7 @@ const HolderMap: React.FC<HolderMapProps> = ({ tokenAddress, width, height, mood
         className="w-full h-full cursor-grab active:cursor-grabbing"
       />
       <div className="absolute bottom-4 right-4 bg-black/50 text-white text-xs p-2 rounded backdrop-blur-md">
-        Top Holders (BlockVision API)
+        Top 100 Holders (Simulated Data)
       </div>
     </div>
   );
