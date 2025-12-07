@@ -1,53 +1,30 @@
 // services/monadService.ts
-import { Token, Holder } from '../types'; // Assuming Holder type is defined here too
+import { Token, Holder } from '../types';
 
-// --- API Configuration ---
-const CODEX_API_KEY = '6a28836dea12a4050f2e0256b585eef55f75aeb8'; // Your Codex key
-const CODEX_GRAPHQL_ENDPOINT = 'https://graph.codex.io/graphql';
+const CODEX_API_KEY = '6a28836dea12a4050f2e0256b585eef55f75aeb8';
+const GRAPHQL_ENDPOINT = 'https://graph.codex.io/graphql';
 
-const BLOCKVISION_API_KEY = '36RJSlyM5vIL2R1kKugyMU1NZeT'; // Your BlockVision key
-const BLOCKVISION_BASE_URL = 'https://api.blockvision.org/v2/monad';
+/**
+ * Checks if a token is a stablecoin based on its symbol or name.
+ */
+const isStableCoin = (symbol: string, name: string): boolean => {
+  const s = (symbol || '').toUpperCase();
+  const n = (name || '').toUpperCase();
 
-// --- Helper Functions ---
+  const stableCoins = [
+    'USDT', 'USDC', 'BUSD', 'DAI', 'TUSD', 'USDP', 'USDD',
+    'FRAX', 'LUSD', 'SUSD', 'MIM', 'FEI', 'ALUSD', 'DOLA',
+    'USD', 'TETHER', 'STABLECOIN'
+  ];
 
-// Helper to call BlockVision API
-const callBlockVisionAPI = async (endpoint: string, params: Record<string, any>) => {
-  const url = new URL(`${BLOCKVISION_BASE_URL}${endpoint}`);
-  Object.keys(params).forEach(key => url.searchParams.append(key, params[key]));
-
-  const response = await fetch(url.toString(), {
-    headers: {
-      'x-api-key': BLOCKVISION_API_KEY,
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(`BlockVision API Error: ${response.statusText}`);
-  }
-
-  return response.json();
+  return stableCoins.some(stable =>
+    s.includes(stable) || n.includes(stable)
+  );
 };
 
-// Helper to call Codex GraphQL API
-const callCodexAPI = async (query: string) => {
-  const response = await fetch(CODEX_GRAPHQL_ENDPOINT, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': CODEX_API_KEY
-    },
-    body: JSON.stringify({ query })
-  });
-
-  const result = await response.json();
-  if (result.errors) {
-    console.error("Codex API Errors:", result.errors);
-    throw new Error("Codex API Error");
-  }
-  return result;
-};
-
-// Determine category based on symbol/name
+/**
+ * Guesses the category of a token based on its symbol or name.
+ */
 const guessCategory = (symbol: string, name: string): string => {
   const s = (symbol || '').toUpperCase();
   const n = (name || '').toUpperCase();
@@ -73,32 +50,17 @@ const guessCategory = (symbol: string, name: string): string => {
   ) {
     return 'DeFi';
   }
-  // Check for common meme coin indicators
-  if (n.includes('PEPE') || n.includes('SHIB') || n.includes('DOGE') || n.includes('FLOKI') || n.includes('BONK') || n.includes('WIF')) return 'Meme';
 
-  return 'Meme'; // Default
+  return 'Meme';
 };
 
-// Check if token is a stablecoin
-const isStableCoin = (symbol: string, name: string): boolean => {
-  const s = (symbol || '').toUpperCase();
-  const n = (name || '').toUpperCase();
-
-  const stableCoins = [
-    'USDT', 'USDC', 'BUSD', 'DAI', 'TUSD', 'USDP', 'USDD',
-    'FRAX', 'LUSD', 'SUSD', 'MIM', 'FEI', 'ALUSD', 'DOLA',
-    'USD', 'TETHER', 'STABLECOIN'
-  ];
-
-  return stableCoins.some(stable =>
-    s.includes(stable) || n.includes(stable)
-  );
-};
-
-// Fetch token image from Dexscreener or Defined.fi
+/**
+ * Fetches a token's image from multiple sources, prioritizing Dexscreener.
+ */
 const fetchTokenImage = async (tokenAddress: string): Promise<string | null> => {
   // Try Dexscreener first
   const dexscreenerUrl = `https://dd.dexscreener.com/ds-data/tokens/monad/${tokenAddress}.png`;
+
   try {
     const response = await fetch(dexscreenerUrl, { method: 'HEAD' });
     if (response.ok) {
@@ -106,63 +68,74 @@ const fetchTokenImage = async (tokenAddress: string): Promise<string | null> => 
     }
   } catch (error) {
     console.warn(`Failed to fetch image from Dexscreener for ${tokenAddress}:`, error);
+    // Continue to next source
   }
 
-  // Try Defined.fi as fallback (example, might need specific endpoint)
-  // const definedUrl = `https://www.defined.fi/image/monad/${tokenAddress}.png`;
-  // try {
-  //   const response = await fetch(definedUrl, { method: 'HEAD' });
-  //   if (response.ok) {
-  //     return definedUrl;
-  //   }
-  // } catch (error) {
-  //   console.warn(`Failed to fetch image from Defined.fi for ${tokenAddress}:`, error);
-  // }
-
-  // Try Codex image if available (from initial fetch)
-  // This will be handled in the main fetch function by passing the Codex image as backup
-
-  return null; // If all fail
-};
-
-// Calculate a composite score for ranking
-const calculateTokenScore = (marketCap: number, volume24: number, change24: number, liquidity: number): number => {
-  if (marketCap <= 0 || volume24 <= 0) return 0;
-
-  // Logarithmic scaling to handle wide ranges
-  const logMarketCap = Math.log(marketCap + 1);
-  const logVolume = Math.log(volume24 + 1);
-  const logLiquidity = Math.log(liquidity + 1);
-
-  // Weighted combination
-  // Market Cap: 40%, Volume: 30%, Change: 20%, Liquidity: 10%
-  const score = (logMarketCap * 0.4) + (logVolume * 0.3) + (Math.abs(change24) * 0.2) + (logLiquidity * 0.1);
-
-  // Bonus for positive momentum
-  if (change24 > 0) {
-    return score * 1.1;
+  // Try CoinGecko as fallback
+  const coingeckoUrl = `https://api.coingecko.com/api/v3/coins/monad/contract/${tokenAddress}`;
+  try {
+    const response = await fetch(coingeckoUrl);
+    if (response.ok) {
+      const data = await response.json();
+      return data.image?.large || data.image?.small || data.image?.thumb || null;
+    }
+  } catch (error) {
+    console.warn(`Failed to fetch image from CoinGecko for ${tokenAddress}:`, error);
+    // Continue to next source
   }
-  return score;
-};
 
-// --- Main Service Functions ---
+  // If all else fails, return null
+  return null;
+};
 
 /**
- * Fetches live token data from Codex, enriches it with BlockVision details,
- * fetches images, and calculates a ranking score.
+ * Calculates a composite score for a token to determine its ranking.
+ * The score combines market cap, volume, and 24h change, while penalizing low activity.
+ * @param marketCap - The token's market cap.
+ * @param volume24 - The token's 24-hour trading volume.
+ * @param change24 - The token's 24-hour price change percentage.
+ * @returns A normalized score for ranking.
+ */
+const calculateTokenScore = (marketCap: number, volume24: number, change24: number): number => {
+  // Avoid division by zero and handle edge cases
+  if (marketCap <= 0 || volume24 <= 0) {
+    return 0;
+  }
+
+  // Normalize values to prevent any single metric from dominating
+  const normalizedMarketCap = Math.log(marketCap + 1); // Logarithmic scale for market cap
+  const normalizedVolume = Math.log(volume24 + 1);     // Logarithmic scale for volume
+
+  // Calculate a base score using weighted average
+  const baseScore = (normalizedMarketCap * 0.6) + (normalizedVolume * 0.3);
+
+  // Add bonus for positive momentum (change24 > 0) and penalize negative momentum
+  const momentumBonus = change24 > 0 ? change24 * 0.1 : change24 * 0.05;
+
+  // Apply a small penalty for very low volume relative to market cap (potential honeypot indicator)
+  const volumeToMarketCapRatio = volume24 / marketCap;
+  const honeypotPenalty = volumeToMarketCapRatio < 0.01 ? -10 : 0;
+
+  // Final score
+  return baseScore + momentumBonus + honeypotPenalty;
+};
+
+/**
+ * Fetches live token data for the Monad network.
+ * Applies strict filtering to exclude junk tokens and uses a composite score for ranking.
  */
 export const fetchMonadTokens = async (): Promise<Token[]> => {
-  // Codex query for Monad (assumes network ID 143)
+  // Query for Monad Testnet (143) with liquidity filter
   const query = `
     query MonadTokens {
       filterTokens(
         filters: {
           network: [143]
-          liquidity: { gt: 1000 } // Filter for some liquidity
+          liquidity: { gt: 1000 }
         }
-        limit: 200 // Fetch more initially
+        limit: 150
         rankings: {
-          attribute: trendingScore24 // Or marketCap, volume24
+          attribute: trendingScore24
           direction: DESC
         }
       ) {
@@ -171,7 +144,6 @@ export const fetchMonadTokens = async (): Promise<Token[]> => {
           change24
           volume24
           marketCap
-          liquidity # Codex provides liquidity
           token {
             address
             name
@@ -188,115 +160,112 @@ export const fetchMonadTokens = async (): Promise<Token[]> => {
   `;
 
   try {
-    const codexResult = await callCodexAPI(query);
-    const items = codexResult.data?.filterTokens?.results || [];
-
-    // Filter out obvious junk from Codex results - REMOVED 'NFT' CRITERIA
-    const filteredItems = items.filter((item: any) => {
-      const t = item.token;
-      if (!t || !t.symbol || !t.name) return false;
-
-      const s = t.symbol.toUpperCase();
-      const n = t.name.toUpperCase();
-
-      const junkKeywords = ['FAUCET', 'TEST', 'MOCK', 'EXAMPLE', 'DEMO']; // 'NFT' removed from this list
-      if (junkKeywords.some(keyword => n.includes(keyword) || s.includes(keyword))) {
-        return false;
-      }
-
-      // Filter out tokens with very low volume or market cap
-      if (parseFloat(item.volume24 || '0') < 10 || parseFloat(item.marketCap || '0') < 100) {
-        return false;
-      }
-
-      return true;
+    const response = await fetch(GRAPHQL_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': CODEX_API_KEY
+      },
+      body: JSON.stringify({ query })
     });
 
-    // Process each token: fetch BlockVision details, image, calculate score
-    const tokens: Token[] = await Promise.all(filteredItems.map(async (item: any) => {
-      const t = item.token;
-      const info = t.info || {};
+    const result = await response.json();
 
-      const price = parseFloat(item.priceUSD || '0');
-      const change24h = parseFloat(item.change24 || '0') * 100; // Codex gives fraction, convert to %
-      const marketCap = parseFloat(item.marketCap || '0');
-      const volume24h = parseFloat(item.volume24 || '0');
-      const liquidity = parseFloat(item.liquidity || '0'); // Use Codex liquidity
+    if (result.errors) {
+      console.error("Codex API Errors:", result.errors);
+      return [];
+    }
 
-      // Fetch details from BlockVision API
-      let bvName = t.name;
-      let bvSymbol = t.symbol;
-      let bvLogo = '';
-      let bvDecimals = 18; // Default
-      let bvTotalSupply = '';
+    const items = result.data?.filterTokens?.results || [];
 
-      try {
-        const bvDetailResponse = await callBlockVisionAPI('/token/detail', { address: t.address });
-        if (bvDetailResponse.code === 0 && bvDetailResponse.result) {
-          const bvDetail = bvDetailResponse.result;
-          bvName = bvDetail.name || bvName;
-          bvSymbol = bvDetail.symbol || bvSymbol;
-          bvLogo = bvDetail.logo || '';
-          bvDecimals = bvDetail.decimals || bvDecimals;
-          bvTotalSupply = bvDetail.totalSupply || bvTotalSupply;
+    const tokens: Token[] = await Promise.all(items
+      .filter((item: any) => {
+        const t = item.token;
+        if (!t || !t.symbol || !t.name) return false;
+
+        const s = t.symbol.toUpperCase();
+        const n = t.name.toUpperCase();
+
+        // STRICT FILTERING: Exclude tokens with junk keywords
+        const junkKeywords = ['FAUCET', 'TEST', 'MOCK', 'EXAMPLE', 'DEMO', 'NFT'];
+        if (junkKeywords.some(keyword => n.includes(keyword) || s.includes(keyword))) {
+          return false;
         }
-      } catch (bvDetailError) {
-        console.warn(`Could not fetch BlockVision details for ${t.address}:`, bvDetailError);
-        // Fallback to Codex data
-      }
 
-      // Fetch image
-      let imageUrl = bvLogo || info.imageLargeUrl || info.imageSmallUrl || info.imageThumbUrl; // Prefer BlockVision, fallback to Codex
-      if (!imageUrl) {
-          try {
-              const fetchedImage = await fetchTokenImage(t.address);
-              if (fetchedImage) {
-                  imageUrl = fetchedImage;
-              }
-          } catch (imgError) {
-              console.warn(`Could not fetch image for ${t.address}:`, imgError);
+        // Filter out tokens with zero or near-zero 24h volume (inactive/honeypot)
+        if (item.volume24 <= 10) {
+          return false;
+        }
+
+        // Filter out tokens with extremely low market cap (less than $100)
+        if (item.marketCap < 100) {
+          return false;
+        }
+
+        return true;
+      })
+      .map(async (item: any) => {
+        const t = item.token;
+        const info = t.info || {};
+
+        const price = parseFloat(item.priceUSD || '0');
+        const change = parseFloat(item.change24 || '0') * 100;
+        let mcap = parseFloat(item.marketCap || '0');
+        const volume = parseFloat(item.volume24 || '0');
+
+        // Fallback for market cap calculation if it's zero
+        if (mcap === 0 && price > 0) {
+          mcap = volume * 10;
+        }
+
+        const isStable = isStableCoin(t.symbol, t.name);
+        const codexImage = info.imageLargeUrl || info.imageSmallUrl || info.imageThumbUrl;
+
+        // Fetch token image
+        let imageUrl = codexImage;
+        try {
+          const fetchedImage = await fetchTokenImage(t.address);
+          if (fetchedImage) {
+            imageUrl = fetchedImage;
           }
-      }
+        } catch (error) {
+          console.warn(`Error fetching image for token ${t.address}:`, error);
+          // Fallback to existing image
+        }
 
-      const category = guessCategory(bvSymbol, bvName);
-      const isStable = isStableCoin(bvSymbol, bvName);
+        // Calculate the composite score for ranking
+        const score = calculateTokenScore(mcap, volume, change);
 
-      // Calculate score
-      const score = calculateTokenScore(marketCap, volume24h, change24h, liquidity);
+        return {
+          id: t.address,
+          symbol: t.symbol,
+          name: t.name,
+          price: price,
+          change24h: change,
+          marketCap: mcap,
+          volume24h: volume,
+          category: guessCategory(t.symbol, t.name),
+          dominance: 0, // Will be calculated later
+          imageUrl: imageUrl,
+          backupImageUrl: codexImage,
+          pairUrl: `https://www.defined.fi/monad/${t.address}`,
+          chainId: 'monad',
+          isStable: isStable,
+          score: score // Add score for sorting
+        };
+      }));
 
-      return {
-        id: t.address,
-        name: bvName,
-        symbol: bvSymbol,
-        price: price,
-        change24h: change24h,
-        marketCap: marketCap,
-        volume24h: volume24h,
-        category: category,
-        dominance: 0, // Calculated later
-        imageUrl: imageUrl,
-        backupImageUrl: info.imageLargeUrl, // Keep Codex as backup
-        pairUrl: `https://www.defined.fi/monad/${t.address}`, // Defined.fi link
-        chainId: 'monad',
-        isStable: isStable,
-        score: score, // For ranking
-        // Add BlockVision specific fields if needed
-        decimals: bvDecimals,
-        totalSupply: bvTotalSupply,
-        liquidity: liquidity, // From Codex
-      };
-    }));
-
-    // Sort by calculated score
+    // Sort tokens by the calculated score in descending order
     tokens.sort((a, b) => b.score - a.score);
 
-    // Calculate dominance
+    // Calculate total market cap for dominance calculation
     const totalMcap = tokens.reduce((sum, t) => sum + t.marketCap, 0);
+
+    // Calculate dominance for each token
     return tokens.map(t => ({
       ...t,
       dominance: totalMcap > 0 ? (t.marketCap / totalMcap) * 100 : 0
     }));
-
   } catch (error) {
     console.error("Failed to fetch Monad tokens:", error);
     return [];
@@ -304,27 +273,44 @@ export const fetchMonadTokens = async (): Promise<Token[]> => {
 };
 
 /**
- * Fetches token holders using BlockVision API.
+ * Fetches simulated token holder data.
+ * This is a placeholder function. In a real implementation, you would query
+ * a blockchain explorer API or an indexer for actual on-chain holder data.
+ * The current simulation is not accurate.
  */
 export const fetchTokenHolders = async (tokenAddress: string): Promise<Holder[]> => {
-  try {
-    const response = await callBlockVisionAPI('/token/holders', { contractAddress: tokenAddress, limit: 100 });
-    if (response.code !== 0) {
-        console.error("BlockVision API Error (Token Holders):", response.reason);
-        return [];
-    }
+  // --- SIMULATION LOGIC (PLACEHOLDER) ---
+  // In reality, this should query an API like BlockVision, Etherscan, or a custom indexer.
+  // The Codex API might not provide detailed holder lists directly.
+  // Example using a hypothetical API:
+  // const response = await fetch(`https://api.blockchainexplorer.com/holders/${tokenAddress}`);
+  // const data = await response.json();
+  // return data.holders.map(holder => ({ ... }));
+  // -------------------------------
 
-    const holdersData = response.result?.data || [];
+  console.warn("Using simulated holder data for", tokenAddress);
+  // Simulate delay
+  await new Promise(resolve => setTimeout(resolve, 1500));
 
-    return holdersData.map((holderData: any) => ({
-        address: holderData.holder,
-        balance: parseFloat(holderData.amount) || 0,
-        percentage: parseFloat(holderData.percentage) || 0,
-        isContract: holderData.isContract,
-        // label and connections not available directly from this endpoint
-    }));
-  } catch (error) {
-    console.error("Failed to fetch token holders via BlockVision:", error);
-    return [];
+  const holders: Holder[] = [];
+  const numHolders = 50 + Math.floor(Math.random() * 50); // Simulate 50-100 holders
+
+  let totalSupplySim = 0;
+  // First pass: generate balances and calculate total supply
+  for (let i = 0; i < numHolders; i++) {
+    const balance = Math.random() * 1000000; // Random balance up to 1M
+    totalSupplySim += balance;
+    holders.push({
+      address: `0x${Array.from({length: 40}, () => Math.floor(Math.random() * 16).toString(16)).join('')}`,
+      balance: balance,
+      percentage: 0, // Placeholder, will calculate later
+      isContract: Math.random() > 0.7, // 30% chance it's a contract
+    });
   }
+
+  // Second pass: calculate percentage based on simulated total supply
+  return holders.map(holder => ({
+    ...holder,
+    percentage: (holder.balance / totalSupplySim) * 100
+  }));
 };
