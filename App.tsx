@@ -1,57 +1,38 @@
 // App.tsx
 import React, { useState, useEffect, useRef } from 'react';
 import { PLAYFUL_COLORS, PROFESSIONAL_COLORS } from './constants';
-import { Token, Mood, ViewMode } from './types';
+import { Token, Mood, ViewMode, CHAINS, ChainConfig } from './types';
 import Treemap from './components/Treemap';
 import DetailModal from './components/DetailModal';
-import HolderMap from './components/HolderMap';
-import { fetchMonadTokens } from './services/monadService';
+import { fetchTokensForNetwork } from './services/tokenService';
 
-// Simple SVG components without unused props
 const BarChart2Icon = () => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-    <line x1="18" y1="20" x2="18" y2="10"></line>
-    <line x1="12" y1="20" x2="12" y2="4"></line>
-    <line x1="6" y1="20" x2="6" y2="14"></line>
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+    <path d="M18 20V10" />
+    <path d="M12 20V4" />
+    <path d="M6 20v-4" />
   </svg>
 );
 
-const RefreshCwIcon = () => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path>
-    <path d="M21 3v5h-5"></path>
-    <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path>
-    <path d="M8 16H3v5"></path>
+const GlobeIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+    <circle cx="12" cy="12" r="10" />
+    <line x1="2" y1="12" x2="22" y2="12" />
+    <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
   </svg>
 );
 
-const MoonIcon = () => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path>
-  </svg>
-);
-
-const SunIcon = () => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="12" cy="12" r="4"></circle>
-    <path d="M12 2v2"></path>
-    <path d="M12 20v2"></path>
-    <path d="m4.93 4.93 1.41 1.41"></path>
-    <path d="m17.66 17.66 1.41 1.41"></path>
-    <path d="M2 12h2"></path>
-    <path d="M20 12h2"></path>
-    <path d="m6.34 17.66-1.41 1.41"></path>
-    <path d="m19.07 4.93-1.41 1.41"></path>
-  </svg>
-);
-
-const NetworkIcon = () => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="12" cy="12" r="10"></circle>
-    <path d="M16.2 7.8 12 12l-4.2-4.2"></path>
-    <path d="m7.8 16.2 4.2-4.2 4.2 4.2"></path>
-  </svg>
-);
+const ChainIcon = ({ chain }: { chain: ChainConfig }) => {
+  const icons: Record<number, string> = {
+    1: 'Ξ',
+    56: 'B',
+    8453: 'B',
+    101: '◎',
+    143: 'M',
+    530: '⚡',
+  };
+  return <span className="text-xs font-bold">{icons[chain.id] || chain.shortName.charAt(0)}</span>;
+};
 
 const App: React.FC = () => {
   const [viewMode, setViewMode] = useState<ViewMode>('TreeMap');
@@ -62,11 +43,9 @@ const App: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const [isDataLoading, setIsDataLoading] = useState(true);
+  const [activeChain, setActiveChain] = useState<ChainConfig>(CHAINS[0]); // default: Monad
 
-  const [searchAddress, setSearchAddress] = useState('');
-  const [activeAddress, setActiveAddress] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
-  const themeColors = mood === 'Playful' ? PLAYFUL_COLORS : PROFESSIONAL_COLORS;
 
   useEffect(() => {
     const handleResize = () => {
@@ -77,20 +56,20 @@ const App: React.FC = () => {
         });
       }
     };
-    window.addEventListener('resize', handleResize);
     handleResize();
+    window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   const loadMarketData = async () => {
     setIsDataLoading(true);
     try {
-      const liveTokens = await fetchMonadTokens();
+      const liveTokens = await fetchTokensForNetwork(activeChain.id);
       if (liveTokens) {
         setTokens(liveTokens);
       }
     } catch (e) {
-      console.error("Failed to load market data", e);
+      console.error('Failed to load market data', e);
     } finally {
       setIsDataLoading(false);
     }
@@ -98,9 +77,9 @@ const App: React.FC = () => {
 
   useEffect(() => {
     loadMarketData();
-    const interval = setInterval(loadMarketData, 60000);
+    const interval = setInterval(loadMarketData, 60_000);
     return () => clearInterval(interval);
-  }, []);
+  }, [activeChain]);
 
   useEffect(() => {
     if (selectedCategory === 'All') {
@@ -110,128 +89,115 @@ const App: React.FC = () => {
     }
   }, [selectedCategory, tokens]);
 
-  useEffect(() => {
-    document.body.style.backgroundColor = themeColors.background;
-    document.body.style.color = themeColors.text;
-    if (mood === 'Professional') {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-  }, [mood, themeColors]);
-
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (searchAddress.trim().length > 10) {
-      setActiveAddress(searchAddress.trim());
-    }
-  };
+  const uniqueCategories = Array.from(
+    new Set(tokens.map(t => t.category))
+  ).filter(cat => cat !== 'All');
 
   return (
-    <div className={`min-h-screen flex flex-col transition-colors duration-500 font-sans ${mood === 'Professional' ? 'dark' : ''}`}>
-
-      <header className={`sticky top-0 z-40 backdrop-blur-md border-b transition-colors duration-500 ${
-        mood === 'Playful' ? 'bg-white/70 border-gray-200' : 'bg-slate-900/80 border-slate-800'
-      }`}>
-        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 text-slate-900 dark:text-slate-100 transition-colors duration-300">
+      <header className="sticky top-0 z-10 backdrop-blur-md bg-white/80 dark:bg-slate-900/80 border-b border-slate-200 dark:border-slate-700">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16">
           <div className="flex items-center gap-3">
-            <div className={`p-2 rounded-lg ${mood === 'Playful' ? 'bg-indigo-500 text-white rotate-3' : 'bg-purple-600 text-white'}`}>
+            <div className={`flex items-center justify-center w-10 h-10 rounded-full font-bold ${
+              mood === 'Playful' ? 'bg-indigo-500 text-white rotate-3' : 'bg-purple-600 text-white'
+            }`}>
               <BarChart2Icon />
             </div>
             <h1 className={`text-2xl font-bold tracking-tight ${mood === 'Playful' ? 'font-display' : 'font-mono'}`}>
-              Monax
-              <span className="text-xs ml-2 opacity-50 font-normal border border-current px-1.5 py-0.5 rounded">Monad Eco</span>
+              Monax <span className="text-xs ml-2 opacity-50 font-normal border border-current px-1.5 py-0.5 rounded">Eco</span>
             </h1>
           </div>
-          <div className="hidden md:flex flex-1 mx-8 items-center justify-center">
-            {viewMode === 'TreeMap' && (
-              <div className="text-sm opacity-50">
-                Live market data
-              </div>
-            )}
 
-            {viewMode === 'BubbleMap' && (
-              <form onSubmit={handleSearch} className="w-full max-w-md flex items-center">
-                <input
-                  type="text"
-                  placeholder="Enter Monad Contract Address (0x...)"
-                  value={searchAddress}
-                  onChange={(e) => setSearchAddress(e.target.value)}
-                  className={`w-full px-4 py-2 rounded-l-lg border-y border-l focus:outline-none ${mood === 'Playful' ? 'bg-white border-gray-200' : 'bg-slate-900 border-slate-700 text-white'}`}
-                />
+          <div className="hidden md:flex flex-1 justify-center">
+            <div className="flex gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-lg">
+              {CHAINS.map(chain => (
                 <button
-                  type="submit"
-                  className="px-4 py-2 rounded-r-lg bg-indigo-600 text-white font-medium hover:bg-indigo-700 transition-colors"
+                  key={chain.id}
+                  onClick={() => setActiveChain(chain)}
+                  className={`px-3 py-1.5 text-sm font-medium rounded-md flex items-center gap-1 transition-colors ${
+                    activeChain.id === chain.id
+                      ? (mood === 'Playful'
+                          ? 'bg-white text-slate-900 shadow-sm'
+                          : 'bg-slate-700 text-white')
+                      : (mood === 'Playful'
+                          ? 'text-slate-600 hover:bg-slate-200'
+                          : 'text-slate-400 hover:bg-slate-700/50')
+                  }`}
                 >
-                  Scan
+                  <ChainIcon chain={chain} />
+                  <span>{chain.shortName}</span>
                 </button>
-              </form>
-            )}
+              ))}
+            </div>
           </div>
-          <div className="flex items-center gap-2">
+
+          <div className="flex items-center gap-3">
             <button
-              onClick={() => setViewMode(v => v === 'TreeMap' ? 'BubbleMap' : 'TreeMap')}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-bold transition-all ${
-                viewMode === 'BubbleMap'
-                  ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300'
-                  : 'hover:bg-black/5 dark:hover:bg-white/5 opacity-70'
-              }`}
-              title="Toggle View Mode"
+              onClick={() => setMood(mood === 'Playful' ? 'Professional' : 'Playful')}
+              className={`p-2 rounded-full ${mood === 'Playful' ? 'bg-gray-100 hover:bg-gray-200' : 'bg-slate-800 hover:bg-slate-700'}`}
             >
-              <NetworkIcon />
-              <span className="hidden sm:inline">{viewMode === 'TreeMap' ? 'Market Map' : 'Holder Map'}</span>
+              <GlobeIcon />
             </button>
-            <button
-              onClick={() => setMood(m => m === 'Playful' ? 'Professional' : 'Playful')}
-              className={`p-2 rounded-full transition-all ${
-                mood === 'Playful'
-                  ? 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  : 'bg-slate-800 text-yellow-400 hover:bg-slate-700'
-              }`}
-            >
-              {mood === 'Playful' ? <SunIcon /> : <MoonIcon />}
-            </button>
+          </div>
+        </div>
+
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2">
+          <div className="flex flex-wrap gap-2 justify-center">
+            {['All', ...uniqueCategories].map(cat => (
+              <button
+                key={cat}
+                onClick={() => setSelectedCategory(cat)}
+                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                  selectedCategory === cat
+                    ? (mood === 'Playful'
+                        ? 'bg-indigo-100 text-indigo-800'
+                        : 'bg-indigo-900 text-indigo-200')
+                    : (mood === 'Playful'
+                        ? 'bg-white text-slate-700 hover:bg-slate-100'
+                        : 'bg-slate-800 text-slate-300 hover:bg-slate-700')
+                }`}
+              >
+                {cat}
+              </button>
+            ))}
           </div>
         </div>
       </header>
-      <main className="flex-1 p-2 sm:p-4 md:p-6 max-w-[1600px] w-full mx-auto flex flex-col gap-4">
 
-        {viewMode === 'BubbleMap' && (
-          <div className="md:hidden mb-4">
-            <form onSubmit={handleSearch} className="w-full flex items-center">
-              <input
-                type="text"
-                placeholder="Contract Address"
-                value={searchAddress}
-                onChange={(e) => setSearchAddress(e.target.value)}
-                className={`flex-1 px-4 py-2 rounded-l-lg border focus:outline-none ${mood === 'Playful' ? 'bg-white border-gray-200' : 'bg-slate-900 border-slate-700'}`}
-              />
-              <button type="submit" className="px-4 py-2 rounded-r-lg bg-indigo-600 text-white">Scan</button>
-            </form>
-          </div>
-        )}
-        <div className="flex items-center justify-between px-2">
-          <h2 className="text-sm font-bold opacity-70 uppercase tracking-wider">
-            {viewMode === 'TreeMap' ? 'Top Tokens by Market Cap' : 'Token Holder Distribution'}
-          </h2>
-          <div className="flex items-center gap-2 text-xs">
-            <span className={`w-2 h-2 rounded-full ${isDataLoading ? 'bg-yellow-500 animate-pulse' : 'bg-green-500'}`}></span>
-            {isDataLoading ? 'Updating...' : 'Live Data'}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+          <div>
+            <h2 className="text-xl font-bold">
+              {viewMode === 'TreeMap' ? 'Top Tokens by Market Cap' : 'Token Holder Distribution'}
+            </h2>
+            <div className="flex items-center gap-2 text-xs">
+              <span className={`w-2 h-2 rounded-full ${isDataLoading ? 'bg-yellow-500 animate-pulse' : 'bg-green-500'}`}></span>
+              {isDataLoading ? 'Updating...' : `Live Data · ${activeChain.name}`}
+            </div>
           </div>
         </div>
+
         <div
           ref={containerRef}
           className="flex-1 min-h-[500px] w-full rounded-2xl overflow-hidden relative transition-all duration-500 flex items-center justify-center border border-black/5 dark:border-white/5"
           style={{
-            boxShadow: mood === 'Playful' ? '0 20px 40px -10px rgba(0,0,0,0.05)' : 'none',
-            backgroundColor: mood === 'Playful' ? 'rgba(255,255,255,0.6)' : 'rgba(15, 23, 42, 0.6)'
+            boxShadow: mood === 'Playful'
+              ? '0 20px 40px -10px rgba(0,0,0,0.05)'
+              : 'none',
+            backgroundColor: mood === 'Playful'
+              ? 'rgba(255,255,255,0.6)'
+              : 'rgba(15, 23, 42, 0.6)',
           }}
         >
           {viewMode === 'TreeMap' ? (
             isDataLoading && tokens.length === 0 ? (
               <div className="flex flex-col items-center gap-4 animate-fade-in">
-                <div className={`w-12 h-12 rounded-full border-4 border-t-transparent animate-spin ${mood === 'Playful' ? 'border-indigo-500' : 'border-purple-500'}`}></div>
-                <div className="text-lg font-medium opacity-60">Scanning Monad Chain...</div>
+                <div className={`w-12 h-12 rounded-full border-4 border-t-transparent animate-spin ${
+                  mood === 'Playful' ? 'border-indigo-500' : 'border-purple-500'
+                }`}></div>
+                <div className="text-lg font-medium opacity-60">
+                  Scanning {activeChain.name}...
+                </div>
               </div>
             ) : tokens.length === 0 ? (
               <div className="text-center opacity-60 p-8">
@@ -243,52 +209,21 @@ const App: React.FC = () => {
                   Retry Fetch
                 </button>
               </div>
-            ) : (
-              dimensions.width > 0 && dimensions.height > 0 && (
-                <Treemap
-                  data={filteredTokens}
-                  width={dimensions.width}
-                  height={dimensions.height}
-                  mood={mood}
-                  onTileClick={setSelectedToken}
-                  selectedId={selectedToken?.id}
-                />
-              )
-            )
-          ) : (
-            dimensions.width > 0 && dimensions.height > 0 && (
-              <HolderMap
-                tokenAddress={activeAddress}
+            ) : dimensions.width > 0 && dimensions.height > 0 ? (
+              <Treemap
+                data={filteredTokens}
                 width={dimensions.width}
                 height={dimensions.height}
                 mood={mood}
+                onTileClick={setSelectedToken}
+                selectedId={selectedToken?.id}
               />
-            )
-          )}
+            ) : null
+          ) : null}
         </div>
-        {viewMode === 'TreeMap' && (
-          <div className="flex flex-wrap justify-center gap-2 pb-8">
-            {['All', 'Stable', 'Meme', 'AI', 'DeFi', 'Staked', 'Wrapped'].map(cat => (
-              <button
-                key={cat}
-                onClick={() => setSelectedCategory(cat)}
-                className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
-                  selectedCategory === cat
-                    ? (mood === 'Playful' ? 'bg-slate-900 text-white shadow-lg scale-105' : 'bg-indigo-600 text-white shadow-lg scale-105')
-                    : (mood === 'Playful' ? 'bg-white hover:bg-gray-50 shadow-sm text-slate-600' : 'bg-slate-800 hover:bg-slate-700 text-slate-300')
-                }`}
-              >
-                {cat}
-              </button>
-            ))}
-          </div>
-        )}
       </main>
-      <DetailModal
-        token={selectedToken}
-        onClose={() => setSelectedToken(null)}
-        mood={mood}
-      />
+
+      <DetailModal token={selectedToken} onClose={() => setSelectedToken(null)} mood={mood} />
     </div>
   );
 };
