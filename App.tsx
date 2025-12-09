@@ -1,4 +1,3 @@
-// App.tsx
 import React, { useState, useEffect, useRef } from 'react';
 import { PLAYFUL_COLORS, PROFESSIONAL_COLORS } from './constants';
 import { Token, Mood, ViewMode, CHAINS, ChainConfig } from './types';
@@ -7,7 +6,7 @@ import DetailModal from './components/DetailModal';
 import { fetchTokensForNetwork } from './services/tokenService';
 
 const BarChart2Icon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M18 20V10" />
     <path d="M12 20V4" />
     <path d="M6 20v-4" />
@@ -15,7 +14,7 @@ const BarChart2Icon = () => (
 );
 
 const GlobeIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <circle cx="12" cy="12" r="10" />
     <line x1="2" y1="12" x2="22" y2="12" />
     <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
@@ -108,13 +107,14 @@ const App: React.FC = () => {
             </h1>
           </div>
 
+          {/* Desktop Chain Selector */}
           <div className="hidden md:flex flex-1 justify-center">
             <div className="flex gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-lg">
               {CHAINS.map(chain => (
                 <button
                   key={chain.id}
                   onClick={() => setActiveChain(chain)}
-                  className={`px-3 py-1.5 text-sm font-medium rounded-md flex items-center gap-1 transition-colors ${
+                  className={`px-3 py-1.5 text-sm font-medium rounded-md flex items-center gap-1.5 transition-colors ${
                     activeChain.id === chain.id
                       ? (mood === 'Playful'
                           ? 'bg-white text-slate-900 shadow-sm'
@@ -131,16 +131,38 @@ const App: React.FC = () => {
             </div>
           </div>
 
+          {/* Mobile Chain Selector */}
+          <div className="md:hidden">
+            <select
+              value={activeChain.id}
+              onChange={(e) => {
+                const chain = CHAINS.find(c => c.id === parseInt(e.target.value));
+                if (chain) setActiveChain(chain);
+              }}
+              className="bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded px-3 py-1.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              {CHAINS.map(c => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </div>
+
           <div className="flex items-center gap-3">
             <button
               onClick={() => setMood(mood === 'Playful' ? 'Professional' : 'Playful')}
-              className={`p-2 rounded-full ${mood === 'Playful' ? 'bg-gray-100 hover:bg-gray-200' : 'bg-slate-800 hover:bg-slate-700'}`}
+              className={`p-2 rounded-full transition-colors ${
+                mood === 'Playful' 
+                  ? 'bg-gray-100 hover:bg-gray-200 text-slate-700' 
+                  : 'bg-slate-800 hover:bg-slate-700 text-slate-200'
+              }`}
+              title="Toggle mood"
             >
               <GlobeIcon />
             </button>
           </div>
         </div>
 
+        {/* Category Filter */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2">
           <div className="flex flex-wrap gap-2 justify-center">
             {['All', ...uniqueCategories].map(cat => (
@@ -170,9 +192,13 @@ const App: React.FC = () => {
             <h2 className="text-xl font-bold">
               {viewMode === 'TreeMap' ? 'Top Tokens by Market Cap' : 'Token Holder Distribution'}
             </h2>
-            <div className="flex items-center gap-2 text-xs">
-              <span className={`w-2 h-2 rounded-full ${isDataLoading ? 'bg-yellow-500 animate-pulse' : 'bg-green-500'}`}></span>
-              {isDataLoading ? 'Updating...' : `Live Data · ${activeChain.name}`}
+            <div className="flex items-center gap-2 text-xs mt-1">
+              <span className={`w-2 h-2 rounded-full ${
+                isDataLoading ? 'bg-yellow-500 animate-pulse' : 'bg-green-500'
+              }`}></span>
+              <span className="text-slate-600 dark:text-slate-400">
+                {isDataLoading ? 'Updating...' : `Live Data · ${activeChain.name}`}
+              </span>
             </div>
           </div>
         </div>
