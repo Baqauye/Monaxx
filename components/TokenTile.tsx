@@ -32,22 +32,33 @@ const TokenTile: React.FC<TokenTileProps> = ({ token, width, height, mood, onCli
   };
 
   const isPositive = token.change24h >= 0;
-  const isLargeEnough = width > 80 && height > 60; // Define a threshold for showing detailed info
-  const isMediumEnough = width > 50 && height > 40; // Threshold for showing symbol + change
-  const showImage = width > 40 && height > 40; // Threshold for showing image
+  const isLargeEnough = width > 80 && height > 60;
 
-  // Calculate dynamic font sizes based on tile dimensions
-  const baseFontSize = Math.min(width / 8, height / 5, 16); // Max base size of 16px
-  const symbolFontSize = Math.max(baseFontSize * 1.2, 10); // Symbol slightly larger
-  const priceFontSize = Math.max(baseFontSize * 0.8, 8);   // Price/Change smaller
-  const changeFontSize = priceFontSize; // Same size as price
+  // Calculate background color based on performance
+  const getBackgroundColor = () => {
+    const absChange = Math.abs(token.change24h);
+    
+    if (isPositive) {
+      // Green for positive - lighter green for smaller gains, darker for larger
+      if (absChange > 20) return 'rgba(16, 185, 129, 0.9)'; // Strong green
+      if (absChange > 10) return 'rgba(16, 185, 129, 0.7)';
+      if (absChange > 5) return 'rgba(16, 185, 129, 0.5)';
+      return 'rgba(16, 185, 129, 0.4)'; // Light green
+    } else {
+      // Red for negative - lighter red for smaller losses, darker for larger
+      if (absChange > 20) return 'rgba(220, 38, 38, 0.9)'; // Strong red
+      if (absChange > 10) return 'rgba(220, 38, 38, 0.7)';
+      if (absChange > 5) return 'rgba(220, 38, 38, 0.5)';
+      return 'rgba(220, 38, 38, 0.4)'; // Light red
+    }
+  };
 
   const containerStyle = {
     width: `${width}px`,
     height: `${height}px`,
     opacity: dimmed ? 0.3 : 1,
     transition: 'opacity 0.2s ease',
-    padding: mood === 'Playful' ? '4px' : '2px',
+    padding: '2px',
     boxSizing: 'border-box' as const,
   };
 
@@ -56,59 +67,56 @@ const TokenTile: React.FC<TokenTileProps> = ({ token, width, height, mood, onCli
     height: '100%',
     display: 'flex',
     flexDirection: 'column' as const,
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    padding: mood === 'Playful' ? '8px' : '4px',
-    borderRadius: mood === 'Playful' ? '16px' : '2px',
-    background: isPositive
-      ? (mood === 'Playful' ? 'linear-gradient(135deg, #f0fdf4, #d1fae5)' : 'rgba(16, 211, 153, 0.1)') // Light green gradient / subtle green
-      : (mood === 'Playful' ? 'linear-gradient(135deg, #fef2f2, #fee2e2)' : 'rgba(248, 113, 113, 0.1)'), // Light red gradient / subtle red
-    border: mood === 'Playful' ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(255,255,255,0.05)',
-    backdropFilter: mood === 'Playful' ? 'blur(10px)' : 'blur(4px)',
+    justifyContent: isLargeEnough ? 'space-between' : 'center',
+    alignItems: 'center',
+    padding: isLargeEnough ? '12px' : '8px',
+    borderRadius: '4px',
+    background: getBackgroundColor(),
+    border: '1px solid rgba(0,0,0,0.1)',
     cursor: 'pointer',
     overflow: 'hidden',
   };
 
   const symbolStyle = {
-    fontSize: `${symbolFontSize}px`,
+    fontSize: width > 120 ? '1.1em' : '0.9em',
     fontWeight: 'bold' as const,
-    color: mood === 'Playful' ? (isPositive ? '#064e3b' : '#991b1b') : (isPositive ? '#34d399' : '#f87171'), // Dark green/red for playful, bright for professional
-    textShadow: mood === 'Playful' ? '0 1px 2px rgba(255,255,255,0.5)' : '0 1px 2px rgba(0,0,0,0.5)',
+    color: '#ffffff',
+    textShadow: '0 1px 2px rgba(0,0,0,0.3)',
     whiteSpace: 'nowrap' as const,
     overflow: 'hidden' as const,
     textOverflow: 'ellipsis' as const,
-  };
-
-  const priceStyle = {
-    fontSize: `${priceFontSize}px`,
-    fontWeight: 'normal' as const,
-    color: mood === 'Playful' ? (isPositive ? '#065f46' : '#b91c1c') : (isPositive ? '#6ee7b7' : '#fca5a5'), // Slightly different shade
-    textShadow: mood === 'Playful' ? '0 1px 1px rgba(255,255,255,0.5)' : '0 1px 1px rgba(0,0,0,0.5)',
-    whiteSpace: 'nowrap' as const,
-    overflow: 'hidden' as const,
-    textOverflow: 'ellipsis' as const,
+    textAlign: 'center' as const,
+    width: '100%',
   };
 
   const changeStyle = {
-    fontSize: `${changeFontSize}px`,
-    fontWeight: 'bold' as const,
-    color: isPositive ? '#065f46' : '#b91c1c', // Consistent dark green/red for change
-    textShadow: '0 1px 1px rgba(0,0,0,0.3)', // Darker shadow for contrast
-    whiteSpace: 'nowrap' as const,
-    overflow: 'hidden' as const,
-    textOverflow: 'ellipsis' as const,
+    fontSize: width > 120 ? '0.9em' : '0.75em',
+    fontWeight: '600' as const,
+    color: '#ffffff',
+    textShadow: '0 1px 2px rgba(0,0,0,0.3)',
+    marginTop: '4px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  };
+
+  const priceStyle = {
+    fontSize: width > 120 ? '0.85em' : '0.7em',
+    color: 'rgba(255,255,255,0.9)',
+    textShadow: '0 1px 2px rgba(0,0,0,0.3)',
+    marginTop: '4px',
+    textAlign: 'center' as const,
   };
 
   const imgStyle = {
-    width: mood === 'Playful' ? '20px' : '18px',
-    height: mood === 'Playful' ? '20px' : '18px',
+    width: isLargeEnough ? '32px' : '24px',
+    height: isLargeEnough ? '32px' : '24px',
     borderRadius: '50%',
     objectFit: 'cover' as const,
-    alignSelf: 'flex-end', // Align image to top-right corner
-    marginBottom: mood === 'Playful' ? '2px' : '1px',
+    marginBottom: '8px',
+    border: '2px solid rgba(255,255,255,0.3)',
   };
 
-  // Format price to be human-readable
   const formatPrice = (p: number) => {
     if (p < 0.000001) return p.toExponential(4);
     if (p < 0.01) return p.toFixed(6);
@@ -125,42 +133,40 @@ const TokenTile: React.FC<TokenTileProps> = ({ token, width, height, mood, onCli
       onClick={() => onClick(token)}
     >
       <div style={cardStyle}>
-        <div style={{ display: 'flex', alignItems: 'center', width: '100%' }}>
-          {showImage && currentImgSrc && !imageError && (
-            <img
-              src={currentImgSrc}
-              alt={token.name}
-              style={imgStyle}
-              onError={handleImageError}
-            />
-          )}
-          {showImage && (!currentImgSrc || imageError) && (
-             <div style={{
-              ...imgStyle,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              backgroundColor: mood === 'Playful' ? '#e2e8f0' : '#1e293b',
-              color: mood === 'Playful' ? '#64748b' : '#94a3b8',
-              fontSize: '0.7em',
-              borderRadius: '50%',
-            }}>
-              ?
+        {isLargeEnough && (currentImgSrc && !imageError ? (
+          <img
+            src={currentImgSrc}
+            alt={token.name}
+            style={imgStyle}
+            onError={handleImageError}
+          />
+        ) : imageError ? (
+          <div style={{
+            ...imgStyle,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: 'rgba(255,255,255,0.2)',
+            color: '#ffffff',
+            fontSize: '0.8em',
+            border: '2px solid rgba(255,255,255,0.3)',
+          }}>
+            {token.symbol.charAt(0)}
+          </div>
+        ) : null)}
+        
+        <div style={symbolStyle}>{token.symbol}</div>
+        
+        {isLargeEnough && (
+          <>
+            <div style={changeStyle}>
+              <span>{isPositive ? '↑' : '↓'}</span>
+              <span style={{ marginLeft: '4px' }}>{Math.abs(token.change24h).toFixed(2)}%</span>
             </div>
-          )}
-          <div style={{ flex: 1, marginLeft: showImage ? '4px' : '0' }}>
-            <div style={symbolStyle}>{token.symbol}</div>
-            {(isLargeEnough || isMediumEnough) && (
-              <div style={changeStyle}>
-                {isPositive ? '+' : ''}{token.change24h.toFixed(2)}%
-              </div>
-            )}
-          </div>
-        </div>
-        {(isLargeEnough) && (
-          <div style={priceStyle}>
-            ${formatPrice(token.price)}
-          </div>
+            <div style={priceStyle}>
+              ${formatPrice(token.price)}
+            </div>
+          </>
         )}
       </div>
     </div>
