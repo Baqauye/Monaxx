@@ -1,5 +1,4 @@
-// components/Treemap.tsx
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState } from 'react';
 import * as d3 from 'd3';
 import { Token, Mood } from '../types';
 import TokenTile from './TokenTile';
@@ -15,70 +14,92 @@ interface TreemapProps {
 
 const Treemap: React.FC<TreemapProps> = ({ data, width, height, mood, selectedId, onTileClick }) => {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
-  const [treemapNodes, setTreemapNodes] = useState<any[]>([]); // Store layout data
 
-  // Calculate treemap layout when data or dimensions change
-  useEffect(() => {
-    if (data.length === 0 || width <= 0 || height <= 0) {
-      setTreemapNodes([]);
-      return;
-    }
+  const root = useMemo(() => {
+    if (data.length === 0) return null;
 
     const hierarchyData = {
       name: 'Market',
-      children: data,
+      children: data
     };
 
     const rootNode = d3.hierarchy(hierarchyData)
-      .sum((d: any) => d.marketCap) // Use marketCap for size
-      .sort((a, b) => (b.value || 0) - (a.value || 0)); // Sort by value descending
+      .sum((d: any) => d.marketCap)
+      .sort((a, b) => (b.value || 0) - (a.value || 0));
 
     const treemapLayout = d3.treemap()
       .size([width, height])
-      .paddingInner(mood === 'Playful' ? 4 : 1) // Inner padding
-      .paddingOuter(mood === 'Playful' ? 4 : 0) // Outer padding
-      .round(true); // Round coordinates for pixel alignment
+      .paddingInner(mood === 'Playful' ? 4 : 1)
+      .paddingOuter(mood === 'Playful' ? 4 : 0)
+      .round(true);
 
-    treemapLayout(rootNode);
+    treemapLayout(rootNode as any);
+    return rootNode;
+  }, [data, width, height, mood]);
 
-    // Extract leaf nodes (the actual tokens) with their calculated positions
-    setTreemapNodes(rootNode.leaves());
-  }, [data, width, height, mood]); // Re-run when data, width, height, or mood changes
+  const transformStyle = useMemo(() => {
+    if (!selectedId || !root) return { transform: 'translate(0px, 0px) scale(1)' };
 
-  if (treemapNodes.length === 0) {
-    return <div>No data to display</div>;
-  }
+    const selectedNode = root.leaves().find((n: any) => n.data.id === selectedId);
+    
+    if (!selectedNode) return { transform: 'translate(0px, 0px) scale(1)' };
+
+    const x = (selectedNode.x0 + selectedNode.x1) / 2;
+    const y = (selectedNode.y0 + selectedNode.y1) / 2;
+    
+    const scale = 3; 
+    
+    const translateX = width / 2 - x * scale;
+    const translateY = height / 2 - y * scale;
+
+    return {
+        transform: `translate(${translateX}px, ${translateY}px) scale(${scale})`
+    };
+
+  }, [selectedId, root, width, height]);
+
+
+  if (!root) return <div>No Data</div>;
 
   return (
-    <div style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden' }}>
-      {treemapNodes.map((node: any) => {
-        const token = node.data; // The actual token object from the hierarchy
-        if (!token) return null; // Skip if data is invalid
-
-        return (
+    <div style={{ width, height, position: 'relative', overflow: 'hidden' }}>
+      <div 
+        style={{ 
+          width: '100%', 
+          height: '100%', 
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          transformOrigin: '0 0',
+          transition: 'transform 0.8s cubic-bezier(0.2, 0.8, 0.2, 1)',
+          willChange: 'transform',
+          ...transformStyle
+        }}
+      >
+        {root.leaves().map((leaf: any) => (
           <div
-            key={token.id}
+            key={leaf.data.id}
             style={{
               position: 'absolute',
-              left: node.x0, // Calculated x position from D3 layout
-              top: node.y0, // Calculated y position from D3 layout
-              width: node.x1 - node.x0, // Calculated width from D3 layout
-              height: node.y1 - node.y0, // Calculated height from D3 layout
-              transition: 'all 0.5s ease-out', // Smooth transitions on layout changes
+              left: leaf.x0,
+              top: leaf.y0,
+              width: leaf.x1 - leaf.x0,
+              height: leaf.y1 - leaf.y0,
+              transition: 'all 0.5s ease-out'
             }}
           >
             <TokenTile
-              token={token}
-              width={node.x1 - node.x0}
-              height={node.y1 - node.y0}
+              token={leaf.data}
+              width={leaf.x1 - leaf.x0}
+              height={leaf.y1 - leaf.y0}
               mood={mood}
               onClick={onTileClick}
-              dimmed={hoveredId !== null && hoveredId !== token.id && token.id !== selectedId}
-              onHover={(isHovering) => setHoveredId(isHovering ? token.id : null)}
+              dimmed={hoveredId !== null && hoveredId !== leaf.data.id && leaf.data.id !== selectedId}
+              onHover={(isHovering) => setHoveredId(isHovering ? leaf.data.id : null)}
             />
           </div>
-        );
-      })}
+        ))}
+      </div>
     </div>
   );
 };
