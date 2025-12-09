@@ -24,13 +24,15 @@ const Treemap: React.FC<TreemapProps> = ({ data, width, height, mood, selectedId
     };
 
     const rootNode = d3.hierarchy(hierarchyData)
-      .sum((d: any) => d.marketCap)
+      .sum((d: any) => d.marketCap || 1) // Use marketCap to determine tile size
       .sort((a, b) => (b.value || 0) - (a.value || 0));
 
+    // Use d3.treemap with squarify for optimal layout
     const treemapLayout = d3.treemap()
       .size([width, height])
-      .paddingInner(mood === 'Playful' ? 4 : 1)
-      .paddingOuter(mood === 'Playful' ? 4 : 0)
+      .paddingInner(mood === 'Playful' ? 3 : 1)
+      .paddingOuter(mood === 'Playful' ? 3 : 1)
+      .tile(d3.treemapSquarify.ratio(1.5)) // Squarify algorithm for better aspect ratios
       .round(true);
 
     treemapLayout(rootNode as any);
