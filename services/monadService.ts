@@ -167,7 +167,7 @@ const calculateTokenScore = (marketCap: number, volume24: number, change24: numb
  * Applies strict filtering to exclude junk tokens and uses a composite score for ranking.
  */
 export const fetchMonadTokens = async (): Promise<Token[]> => {
-  // Query for Monad Testnet (143) with liquidity filter
+  // Query for Monad main-net (143) with liquidity filter
   const query = `
     query MonadTokens {
       filterTokens(
@@ -175,7 +175,7 @@ export const fetchMonadTokens = async (): Promise<Token[]> => {
           network: [143]
           liquidity: { gt: 1000 }
         }
-        limit: 50
+        limit: 200
         rankings: {
           attribute: trendingScore24
           direction: DESC
