@@ -175,7 +175,7 @@ export const fetchMonadTokens = async (): Promise<Token[]> => {
           network: [143]
           liquidity: { gt: 1000 }
         }
-        limit: 200
+        limit: 50
         rankings: {
           attribute: trendingScore24
           direction: DESC
