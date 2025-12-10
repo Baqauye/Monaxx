@@ -1,86 +1,25 @@
 // services/tokenService.ts
 import { Token } from '../types';
+import { fetchMonadTokens } from './monadService';
+import { classifyToken } from './categoryClassifier';
 
 const CODEX_API_KEY = '6a28836dea12a4050f2e0256b585eef55f75aeb8';
 const GRAPHQL_ENDPOINT = 'https://graph.codex.io/graphql';
 
-const isStableCoin = (symbol: string, name: string): boolean => {
-  const s = (symbol || '').toUpperCase();
-  const n = (name || '').toUpperCase();
-  const stableCoins = [
-    'USDT', 'USDC', 'BUSD', 'DAI', 'TUSD', 'USDP', 'USDD',
-    'FRAX', 'LUSD', 'SUSD', 'MIM', 'FEI', 'ALUSD', 'DOLA', 'USD', 'TETHER'
-  ];
-  return stableCoins.some(stable => s.includes(stable) || n.includes(stable));
-};
-
-const isUnwantedToken = (symbol: string, name: string): boolean => {
-  const s = (symbol || '').toUpperCase();
-  const n = (name || '').toUpperCase();
-  const unwantedSymbols = ['MUBOND', 'SHMON', 'AZND', 'LOAZND', 'MUBON', 'LOAZ'];
-  if (unwantedSymbols.includes(s)) return true;
-  if (n.includes('SWAP') || n.includes('DEX') || n.includes('FINANCE') ||
-      n.includes('PROTOCOL') || n.includes('YIELD') || n.includes('PERP') ||
-      n.includes('DAO')) {
-    return false; // still allow DeFi, but categorize correctly
-  }
-  return false;
-};
-
-const guessCategory = (symbol: string, name: string): string => {
-  const s = (symbol || '').toUpperCase();
-  const n = (name || '').toUpperCase();
-  if (isStableCoin(symbol, name)) return 'Stablecoin';
-  if (n.includes('MEME') || s.includes('PEPE') || s.includes('WIF') || s.includes('BONK')) return 'Meme';
-  if (n.includes('SWAP') || n.includes('DEX') || n.includes('FINANCE') ||
-      n.includes('PROTOCOL') || n.includes('YIELD') || n.includes('PERP') ||
-      n.includes('DAO')) return 'DeFi';
-  return 'Meme'; // fallback for unknown = assume meme (for trending bias)
-};
-
-const fetchTokenImage = async (tokenAddress: string, networkId: number): Promise<string | null> => {
-  // Dexscreener supports: sol, eth, bsc, base, monad, etc.
-  const networkSlug = {
-    1: 'ethereum',
-    56: 'bsc',
-    8453: 'base',
-    101: 'solana',
-    143: 'monad',
-    530: 'hyperevm',
-  }[networkId] || 'ethereum';
-
-  const dexscreenerUrl = `https://dd.dexscreener.com/ds-data/tokens/${networkSlug}/${tokenAddress}.png`;
-  try {
-    const resp = await fetch(dexscreenerUrl, { method: 'HEAD' });
-    if (resp.ok) return dexscreenerUrl;
-  } catch (e) {
-    console.warn(`DexScreener image fail for ${tokenAddress}`, e);
-  }
-
-  // Fallback: Codex already gives image URLs — prioritize those
-  return null;
-};
-
-const calculateScore = (price: number, change24: number, volume24: number, marketCap: number): number => {
-  let baseScore = Math.log10(marketCap + 1) * 2;
-  const momentumBonus = Math.max(-5, Math.min(10, change24 * 0.5));
-  const volumeToMarketCapRatio = volume24 / (marketCap || 1);
-  const honeypotPenalty = volumeToMarketCapRatio < 0.01 ? -10 : 0;
-  return baseScore + momentumBonus + honeypotPenalty;
-};
-
-export const fetchTokensForNetwork = async (networkId: number): Promise<Token[]> => {
-  // Fetch top ~100 tokens by trendingScore24, liquidity > $1k
+/**
+ * Generic token fetcher for any supported network
+ */
+const fetchTokensForChain = async (networkId: number): Promise<Token[]> => {
   const query = `
-    query TokensByNetwork($networkId: Int!) {
+    query NetworkTokens {
       filterTokens(
         filters: {
-          network: [$networkId],
+          network: [${networkId}]
           liquidity: { gt: 1000 }
-        },
-        limit: 100,
+        }
+        limit: 50
         rankings: {
-          attribute: trendingScore24,
+          attribute: trendingScore24
           direction: DESC
         }
       ) {
@@ -105,85 +44,112 @@ export const fetchTokensForNetwork = async (networkId: number): Promise<Token[]>
   `;
 
   try {
-    const res = await fetch(GRAPHQL_ENDPOINT, {
+    const response = await fetch(GRAPHQL_ENDPOINT, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': CODEX_API_KEY,
+        'Authorization': CODEX_API_KEY
       },
-      body: JSON.stringify({
-        query,
-        variables: { networkId },
-      }),
+      body: JSON.stringify({ query })
     });
 
-    const json = await res.json();
-    if (json.errors) {
-      console.error('Codex API Error:', json.errors);
+    const result = await response.json();
+
+    if (result.errors) {
+      console.error(`Codex API Errors for network ${networkId}:`, result.errors);
       return [];
     }
 
-    const items = json.data?.filterTokens?.results || [];
+    const items = result.data?.filterTokens?.results || [];
 
-    const tokens: Token[] = await Promise.all(
-      items
-        .filter((item: any) => {
-          const t = item.token;
-          if (!t || !t.address || !t.symbol) return false;
-          if (isUnwantedToken(t.symbol, t.name)) return false;
-          return true;
-        })
-        .map(async (item: any) => {
-          const t = item.token;
-          const info = item.token.info || {};
-          const price = parseFloat(item.priceUSD || '0');
-          const change = (parseFloat(item.change24 || '0') || 0) * 100;
-          let mcap = parseFloat(item.marketCap || '0');
-          const volume = parseFloat(item.volume24 || '0');
+    const tokens: Token[] = items
+      .filter((item: any) => {
+        const t = item.token;
+        if (!t || !t.symbol || !t.name) return false;
+        if (item.volume24 <= 10) return false;
+        if (item.marketCap < 100) return false;
+        return true;
+      })
+      .map((item: any) => {
+        const t = item.token;
+        const info = t.info || {};
 
-          if (mcap === 0 && price > 0 && volume > 0) {
-            // Approximate: assume FDV ~ 10x volume (common for early tokens)
-            mcap = volume * 10;
-          }
+        const price = parseFloat(item.priceUSD || '0');
+        const change = parseFloat(item.change24 || '0') * 100;
+        let mcap = parseFloat(item.marketCap || '0');
+        const volume = parseFloat(item.volume24 || '0');
 
-          const isStable = isStableCoin(t.symbol, t.name);
-          const codexImage = info.imageLargeUrl || info.imageSmallUrl || info.imageThumbUrl;
-          const imageUrl = codexImage || (await fetchTokenImage(t.address, networkId)) || undefined;
+        if (mcap === 0 && price > 0) {
+          mcap = volume * 10;
+        }
 
-          const chainName = {
-            1: 'eth',
-            56: 'bsc',
-            8453: 'base',
-            101: 'sol',
-            143: 'monad',
-            530: 'hyperevm',
-          }[networkId] || 'unknown';
+        const category = classifyToken(t.symbol, t.name);
+        const isStable = category === 'Stablecoins';
 
-          return {
-            id: `${t.address}:${networkId}`,
-            symbol: t.symbol,
-            name: t.name,
-            price,
-            change24h: change,
-            marketCap: mcap,
-            volume24h: volume,
-            category: guessCategory(t.symbol, t.name),
-            dominance: 0,
-            imageUrl,
-            backupImageUrl: codexImage,
-            pairUrl: `https://www.defined.fi/${chainName}/${t.address}`,
-            chainId: chainName,
-            networkId,
-            isStable,
-            score: calculateScore(price, change, volume, mcap),
-          };
-        })
-    );
+        const imageUrl = info.imageLargeUrl || info.imageSmallUrl || info.imageThumbUrl;
 
-    tokens.sort((a, b) => (b.score || 0) - (a.score || 0));
-    return tokens;
-  } catch (err) {
-    console.error(`Failed to fetch tokens for network ${networkId}:`, err);
+        const normalizedMarketCap = Math.log(mcap + 1);
+        const normalizedVolume = Math.log(volume + 1);
+        const baseScore = (normalizedMarketCap * 0.6) + (normalizedVolume * 0.3);
+        const momentumBonus = change > 0 ? change * 0.1 : change * 0.05;
+        const score = baseScore + momentumBonus;
+
+        return {
+          id: t.address,
+          symbol: t.symbol,
+          name: t.name,
+          price: price,
+          change24h: change,
+          marketCap: mcap,
+          volume24h: volume,
+          category: category,
+          dominance: 0,
+          imageUrl: imageUrl,
+          backupImageUrl: imageUrl,
+          pairUrl: `https://www.defined.fi/${getChainSlug(networkId)}/${t.address}`,
+          chainId: getChainSlug(networkId),
+          isStable: isStable,
+          score: score
+        };
+      });
+
+    tokens.sort((a, b) => b.score - a.score);
+
+    const totalMcap = tokens.reduce((sum, t) => sum + t.marketCap, 0);
+
+    return tokens.map(t => ({
+      ...t,
+      dominance: totalMcap > 0 ? (t.marketCap / totalMcap) * 100 : 0
+    }));
+  } catch (error) {
+    console.error(`Failed to fetch tokens for network ${networkId}:`, error);
     return [];
   }
+};
+
+/**
+ * Get chain slug for URL construction
+ */
+const getChainSlug = (networkId: number): string => {
+  const slugs: Record<number, string> = {
+    1: 'eth',
+    56: 'bsc',
+    8453: 'base',
+    101: 'solana',
+    143: 'monad',
+    530: 'sonic'
+  };
+  return slugs[networkId] || 'eth';
+};
+
+/**
+ * Main export: Fetch tokens for any supported network
+ */
+export const fetchTokensForNetwork = async (networkId: number): Promise<Token[]> => {
+  // Use specialized Monad service if available, otherwise use generic
+  if (networkId === 143) {
+    return fetchMonadTokens();
+  }
+  
+  return fetchTokensForChain(networkId);
 };
