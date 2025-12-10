@@ -21,6 +21,18 @@ const GlobeIcon = () => (
   </svg>
 );
 
+const ChevronDownIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="6 9 12 15 18 9" />
+  </svg>
+);
+
+const CheckIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="20 6 9 17 4 12" />
+  </svg>
+);
+
 const ChainIcon = ({ chain }: { chain: ChainConfig }) => {
   const icons: Record<number, string> = {
     1: 'Ξ',
@@ -43,6 +55,7 @@ const App: React.FC = () => {
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const [isDataLoading, setIsDataLoading] = useState(true);
   const [activeChain, setActiveChain] = useState<ChainConfig>(CHAINS[0]); // default: Monad
+  const [showChainSelector, setShowChainSelector] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -92,6 +105,11 @@ const App: React.FC = () => {
     new Set(tokens.map(t => t.category))
   ).filter(cat => cat !== 'All');
 
+  const handleChainSelect = (chain: ChainConfig) => {
+    setActiveChain(chain);
+    setShowChainSelector(false);
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 text-slate-900 dark:text-slate-100 transition-colors duration-300">
       <header className="sticky top-0 z-10 backdrop-blur-md bg-white/80 dark:bg-slate-900/80 border-b border-slate-200 dark:border-slate-700">
@@ -131,20 +149,16 @@ const App: React.FC = () => {
             </div>
           </div>
 
-          {/* Mobile Chain Selector */}
+          {/* Mobile Chain Selector Button */}
           <div className="md:hidden">
-            <select
-              value={activeChain.id}
-              onChange={(e) => {
-                const chain = CHAINS.find(c => c.id === parseInt(e.target.value));
-                if (chain) setActiveChain(chain);
-              }}
-              className="bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded px-3 py-1.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            <button
+              onClick={() => setShowChainSelector(true)}
+              className="bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded px-3 py-1.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 flex items-center gap-2"
             >
-              {CHAINS.map(c => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
+              <ChainIcon chain={activeChain} />
+              <span>{activeChain.shortName}</span>
+              <ChevronDownIcon />
+            </button>
           </div>
 
           <div className="flex items-center gap-3">
@@ -249,7 +263,92 @@ const App: React.FC = () => {
         </div>
       </main>
 
+      {/* Bottom Sheet Chain Selector Modal */}
+      {showChainSelector && (
+        <div 
+          className="fixed inset-0 z-50 md:hidden"
+          onClick={() => setShowChainSelector(false)}
+        >
+          {/* Backdrop */}
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-fade-in" />
+          
+          {/* Bottom Sheet */}
+          <div 
+            className="absolute bottom-0 left-0 right-0 bg-white dark:bg-slate-900 rounded-t-3xl shadow-2xl animate-slide-up"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Handle */}
+            <div className="flex justify-center pt-3 pb-2">
+              <div className="w-12 h-1.5 bg-slate-300 dark:bg-slate-600 rounded-full" />
+            </div>
+            
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700">
+              <h3 className="text-lg font-semibold text-center">Select Chain</h3>
+            </div>
+            
+            {/* Chain Options */}
+            <div className="px-4 py-2 max-h-[70vh] overflow-y-auto">
+              {CHAINS.map((chain) => (
+                <button
+                  key={chain.id}
+                  onClick={() => handleChainSelect(chain)}
+                  className={`w-full flex items-center justify-between px-4 py-4 rounded-xl transition-colors ${
+                    activeChain.id === chain.id
+                      ? 'bg-indigo-50 dark:bg-indigo-900/30'
+                      : 'hover:bg-slate-50 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`flex items-center justify-center w-10 h-10 rounded-full ${
+                      activeChain.id === chain.id
+                        ? 'bg-indigo-500 text-white'
+                        : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
+                    }`}>
+                      <ChainIcon chain={chain} />
+                    </div>
+                    <div className="text-left">
+                      <div className="font-medium">{chain.name}</div>
+                      <div className="text-sm text-slate-500 dark:text-slate-400">{chain.shortName}</div>
+                    </div>
+                  </div>
+                  
+                  {activeChain.id === chain.id && (
+                    <div className="text-indigo-500">
+                      <CheckIcon />
+                    </div>
+                  )}
+                </button>
+              ))}
+            </div>
+            
+            {/* Safe area spacing for mobile */}
+            <div className="h-8" />
+          </div>
+        </div>
+      )}
+
       <DetailModal token={selectedToken} onClose={() => setSelectedToken(null)} mood={mood} />
+
+      <style>{`
+        @keyframes fade-in {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        
+        @keyframes slide-up {
+          from { transform: translateY(100%); }
+          to { transform: translateY(0); }
+        }
+        
+        .animate-fade-in {
+          animation: fade-in 0.2s ease-out;
+        }
+        
+        .animate-slide-up {
+          animation: slide-up 0.3s ease-out;
+        }
+      `}</style>
     </div>
   );
 };
