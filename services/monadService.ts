@@ -1,195 +1,173 @@
-// services/monadService.ts (FULL REWRITE OF CATEGORY LOGIC)
-
-import { Token, Holder, TokenCategory } from '../types';
+// services/monadService.ts
+import { Token, Holder } from '../types';
 
 const CODEX_API_KEY = '6a28836dea12a4050f2e0256b585eef55f75aeb8';
 const GRAPHQL_ENDPOINT = 'https://graph.codex.io/graphql';
 
-// ================
-// 🔍 CATEGORY MATCHERS
-// ================
+/**
+ * Checks if a token is a stablecoin based on its symbol or name.
+ */
+const isStableCoin = (symbol: string, name: string): boolean => {
+  const s = (symbol || '').toUpperCase();
+  const n = (name || '').toUpperCase();
 
-// Helper: Test if any keyword appears as a *whole word* in text (case-insensitive)
-const wordMatch = (text: string, keywords: string[]): boolean => {
-  const lower = text.toLowerCase();
-  return keywords.some(kw => {
-    const escaped = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const regex = new RegExp(`\\b${escaped}\\b`, 'i');
-    return regex.test(lower);
-  });
-};
+  const stableCoins = [
+    'USDT', 'USDC', 'BUSD', 'DAI', 'TUSD', 'USDP', 'USDD',
+    'FRAX', 'LUSD', 'SUSD', 'MIM', 'FEI', 'ALUSD', 'DOLA',
+    'USD', 'TETHER', 'STABLECOIN'
+  ];
 
-// Helper: Try to extract tags from token.info (Codex may provide)
-const extractTags = (info: any): string[] => {
-  // Codex returns tags? Let's check common structures
-  if (Array.isArray(info?.tags)) return info.tags.map(t => String(t).toLowerCase());
-  if (typeof info?.category === 'string') return [info.category.toLowerCase()];
-  if (info?.categories && Array.isArray(info.categories)) return info.categories.map(c => String(c).toLowerCase());
-  return [];
-};
-
-// 🔑 Stablecoin matcher (strict)
-const isStablecoin = (symbol: string, name: string): boolean => {
-  const s = symbol.toUpperCase();
-  const n = name.toUpperCase();
-  return (
-    wordMatch(s + ' ' + n, [
-      'USD', 'EUR', 'JPY', 'GBP', 'CAD', 'AUD',
-      'TETHER', 'DAI', 'BUSD', 'USDT', 'USDC', 'FRAX', 'LUSD',
-      'STABLE', 'STABLECOIN', 'PARITY', 'PEG'
-    ]) ||
-    s.startsWith('USD') || s.startsWith('EUR') ||
-    n.includes('STABLE') ||
-    s.endsWith('USD') || s.endsWith('EUR')
+  return stableCoins.some(stable =>
+    s.includes(stable) || n.includes(stable)
   );
 };
 
-// 🔑 AI Tokens
-const isAiToken = (symbol: string, name: string, tags: string[]): boolean =>
-  wordMatch(symbol + ' ' + name, ['AI', 'GPT', 'ML', 'AGENT', 'INTELLIGENCE', 'NEURAL', 'LLM']) ||
-  tags.some(t => /ai|machine.?learning|neural|llm|agent/i.test(t));
+/**
+ * Checks if a token should be filtered out based on unwanted patterns.
+ */
+const isUnwantedToken = (symbol: string, name: string): boolean => {
+  const s = (symbol || '').toUpperCase();
+  const n = (name || '').toUpperCase();
 
-// 🔑 DeFi Tokens (protocols)
-const isDefiToken = (symbol: string, name: string, tags: string[]): boolean =>
-  wordMatch(name, ['SWAP', 'DEX', 'POOL', 'YIELD', 'FARM', 'LENDING', 'PERP', 'BANK', 'INSURANCE', 'LIQUIDITY', 'VAULT']) ||
-  tags.some(t => /defi|dex|yield|lending|perp|farm|protocol/i.test(t));
+  // Specific unwanted tokens
+  const unwantedSymbols = [
+    'MUBOND', 'SHMON', 'AZND', 'LOAZND', 'MUBON', 'LOAZ'
+  ];
 
-// 🔑 Governance Tokens
-const isGovernanceToken = (symbol: string, name: string, tags: string[]): boolean =>
-  wordMatch(name, ['GOV', 'GOVERNANCE', 'DAO', 'VOTE', 'PROPOSAL']) ||
-  tags.some(t => /governance|dao|vote/i.test(t));
-
-// 🔑 Utility Tokens
-// (broad fallback — often overlaps; prioritize others first)
-const isUtilityToken = (symbol: string, name: string, tags: string[]): boolean =>
-  wordMatch(name, ['UTILITY', 'ACCESS', 'SERVICE', 'PLATFORM', 'FEE', 'GAS']) ||
-  tags.some(t => /utility|access|service|fee/i.test(t));
-
-// 🔑 GameFi Tokens
-const isGameFiToken = (symbol: string, name: string, tags: string[]): boolean =>
-  wordMatch(name, ['GAME', 'PLAY', 'NFT', 'METAVERSE', 'QUEST', 'LEVEL', 'GUILD', 'ITEM']) ||
-  tags.some(t => /game|play.*to.*earn|metaverse|nft|p2e/i.test(t));
-
-// 🔑 RWA Tokens (Real World Assets)
-const isRwaToken = (symbol: string, name: string, tags: string[]): boolean =>
-  wordMatch(name, ['RWA', 'REAL', 'WORLD', 'ASSET', 'PROPERTY', 'BOND', 'LOAN', 'TREASURY', 'SECURITY']) ||
-  tags.some(t => /rwa|real.?world|property|bond|security|treasury/i.test(t));
-
-// 🔑 Infrastructure & Tools
-const isInfrastructureToken = (symbol: string, name: string, tags: string[]): boolean =>
-  wordMatch(name, [
-    'INFRA', 'INFRASTRUCTURE', 'INDEXER', 'RPC', 'NODE',
-    'CHAIN', 'LAYER', 'SDK', 'TOOL', 'ORACLE', 'MIDDLEWARE',
-    'INDEX', 'API', 'QUERY', 'SUBGRAPH'
-  ]) ||
-  tags.some(t => /infra|indexer|rpc|node|oracle|sdk|middleware|layer/i.test(t));
-
-// 🔑 Privacy Tokens
-const isPrivacyToken = (symbol: string, name: string, tags: string[]): boolean =>
-  wordMatch(name, ['PRIVACY', 'PRIVATE', 'ZK', 'ZKP', 'SHIELD', 'CLOAK', 'ANON', 'MIXER']) ||
-  tags.some(t => /privacy|private|zk|zero.?knowledge|anon|mixer/i.test(t));
-
-// 🔁 Final Category Classifier — ordered by priority
-const classifyToken = (symbol: string, name: string, info: any): TokenCategory => {
-  const tags = extractTags(info);
-
-  // 1. Stablecoins (highest priority)
-  if (isStablecoin(symbol, name)) return 'Stablecoins';
-
-  // 2. AI Tokens
-  if (isAiToken(symbol, name, tags)) return 'AI Tokens';
-
-  // 3. DeFi Tokens
-  if (isDefiToken(symbol, name, tags)) return 'DeFi Tokens';
-
-  // 4. Governance Tokens
-  if (isGovernanceToken(symbol, name, tags)) return 'Governance Tokens';
-
-  // 5. GameFi
-  if (isGameFiToken(symbol, name, tags)) return 'GameFi Tokens';
-
-  // 6. RWA
-  if (isRwaToken(symbol, name, tags)) return 'RWA Tokens';
-
-  // 7. Infrastructure
-  if (isInfrastructureToken(symbol, name, tags)) return 'Infrastructure & Tools';
-
-  // 8. Privacy
-  if (isPrivacyToken(symbol, name, tags)) return 'Privacy Tokens';
-
-  // 9. Utility (broad — keep before Meme fallback)
-  if (isUtilityToken(symbol, name, tags)) return 'Utility Tokens';
-
-  // 10. Default: speculative → Meme Coins
-  return 'Meme Coins';
-};
-
-// ================
-// ❌ UNWANTED TOKEN FILTER (now tag/metadata-aware)
-// ================
-
-const isUnwantedToken = (symbol: string, name: string, info: any): boolean => {
-  const s = symbol.toUpperCase();
-  const n = name.toUpperCase();
-
-  // Junk/placeholder/test tokens (case-insensitive whole-word match)
-  if (wordMatch(n, ['TEST', 'FAUCET', 'MOCK', 'DEMO', 'EXAMPLE', 'JUNK', 'DUMMY'])) {
+  // Check if symbol matches any unwanted tokens
+  if (unwantedSymbols.some(unwanted => s === unwanted || s.includes(unwanted))) {
     return true;
   }
 
-  // Very low activity (already filtered in fetch, but double-check)
-  // → Handled elsewhere in liquidity/volume filter
+  // Filter tokens with common unwanted prefixes
+  const unwantedPrefixes = ['MU', 'LO', 'SH', 'ST', 'EZ'];
+  const unwantedSuffixes = ['BOND', 'AZND'];
 
-  // Avoid "Wrapped" duplicates unless explicitly important (e.g., WETH handled manually later)
-  // → We’ll keep W* tokens but classify them properly (e.g., WETH = Infrastructure or DeFi)
+  // Check for unwanted prefix + suffix combinations
+  for (const prefix of unwantedPrefixes) {
+    for (const suffix of unwantedSuffixes) {
+      if (s === prefix + suffix) {
+        return true;
+      }
+    }
+  }
+
+  // Filter tokens with patterns like "liquid", "staked", "wrapped" derivatives
+  const unwantedPatterns = [
+    'LIQUID', 'STAKED', 'WRAPPED', 'RECEIPT', 'VAULT', 'CERTIFICATE'
+  ];
+
+  if (unwantedPatterns.some(pattern => n.includes(pattern) && (s.startsWith('MU') || s.startsWith('LO') || s.startsWith('SH')))) {
+    return true;
+  }
 
   return false;
 };
 
-// ================
-// 🖼️ Token Image (unchanged)
-// ================
+/**
+ * Guesses the category of a token based on its symbol or name.
+ */
+const guessCategory = (symbol: string, name: string): string => {
+  const s = (symbol || '').toUpperCase();
+  const n = (name || '').toUpperCase();
 
+  // Check for stablecoins first
+  if (isStableCoin(s, n)) {
+    return 'Stable';
+  }
+
+  if (s === 'WMON' || s === 'WETH' || s === 'WBTC' || n.includes('WRAPPED')) {
+    return 'Wrapped';
+  }
+  if (s.startsWith('ST') || s.startsWith('EZ') || n.includes('STAKED') || n.includes('LIQUID')) {
+    return 'Staked';
+  }
+  if (n.includes(' AI') || n.includes('GPT') || s.includes('AI') || n.includes('INTELLIGENCE') || n.includes('AGENT')) {
+    return 'AI';
+  }
+  if (
+    n.includes('SWAP') || n.includes('DEX') || n.includes('FINANCE') ||
+    n.includes('PROTOCOL') || n.includes('YIELD') || n.includes('PERP') ||
+    n.includes('DAO')
+  ) {
+    return 'DeFi';
+  }
+
+  return 'Meme';
+};
+
+/**
+ * Fetches a token's image from multiple sources, prioritizing Dexscreener.
+ */
 const fetchTokenImage = async (tokenAddress: string): Promise<string | null> => {
+  // Try Dexscreener first
   const dexscreenerUrl = `https://dd.dexscreener.com/ds-data/tokens/monad/${tokenAddress}.png`;
+
   try {
     const response = await fetch(dexscreenerUrl, { method: 'HEAD' });
-    if (response.ok) return dexscreenerUrl;
-  } catch (e) {
-    // ignore
+    if (response.ok) {
+      return dexscreenerUrl;
+    }
+  } catch (error) {
+    console.warn(`Failed to fetch image from Dexscreener for ${tokenAddress}:`, error);
+    // Continue to next source
   }
+
+  // Try CoinGecko as fallback
+  const coingeckoUrl = `https://api.coingecko.com/api/v3/coins/monad/contract/${tokenAddress}`;
   try {
-    const coingeckoUrl = `https://api.coingecko.com/api/v3/coins/monad/contract/${tokenAddress}`;
-    const res = await fetch(coingeckoUrl);
-    if (res.ok) {
-      const data = await res.json();
+    const response = await fetch(coingeckoUrl);
+    if (response.ok) {
+      const data = await response.json();
       return data.image?.large || data.image?.small || data.image?.thumb || null;
     }
-  } catch (e) {
-    // ignore
+  } catch (error) {
+    console.warn(`Failed to fetch image from CoinGecko for ${tokenAddress}:`, error);
+    // Continue to next source
   }
+
+  // If all else fails, return null
   return null;
 };
 
-// ================
-// 📊 Scoring (unchanged)
-// ================
-
+/**
+ * Calculates a composite score for a token to determine its ranking.
+ * The score combines market cap, volume, and 24h change, while penalizing low activity.
+ * @param marketCap - The token's market cap.
+ * @param volume24 - The token's 24-hour trading volume.
+ * @param change24 - The token's 24-hour price change percentage.
+ * @returns A normalized score for ranking.
+ */
 const calculateTokenScore = (marketCap: number, volume24: number, change24: number): number => {
-  if (marketCap <= 0 || volume24 <= 0) return 0;
-  const nMC = Math.log(marketCap + 1);
-  const nVol = Math.log(volume24 + 1);
-  const base = nMC * 0.6 + nVol * 0.3;
-  const momentum = change24 > 0 ? change24 * 0.1 : change24 * 0.05;
-  const ratioPenalty = volume24 / marketCap < 0.01 ? -10 : 0;
-  return base + momentum + ratioPenalty;
+  // Avoid division by zero and handle edge cases
+  if (marketCap <= 0 || volume24 <= 0) {
+    return 0;
+  }
+
+  // Normalize values to prevent any single metric from dominating
+  const normalizedMarketCap = Math.log(marketCap + 1); // Logarithmic scale for market cap
+  const normalizedVolume = Math.log(volume24 + 1);     // Logarithmic scale for volume
+
+  // Calculate a base score using weighted average
+  const baseScore = (normalizedMarketCap * 0.6) + (normalizedVolume * 0.3);
+
+  // Add bonus for positive momentum (change24 > 0) and penalize negative momentum
+  const momentumBonus = change24 > 0 ? change24 * 0.1 : change24 * 0.05;
+
+  // Apply a small penalty for very low volume relative to market cap (potential honeypot indicator)
+  const volumeToMarketCapRatio = volume24 / marketCap;
+  const honeypotPenalty = volumeToMarketCapRatio < 0.01 ? -10 : 0;
+
+  // Final score
+  return baseScore + momentumBonus + honeypotPenalty;
 };
 
-// ================
-// 🌐 Main Fetcher
-// ================
-
+/**
+ * Fetches live token data for the Monad network.
+ * Applies strict filtering to exclude junk tokens and uses a composite score for ranking.
+ */
 export const fetchMonadTokens = async (): Promise<Token[]> => {
+  // Query for Monad main-net (143) with liquidity filter
   const query = `
     query MonadTokens {
       filterTokens(
@@ -197,7 +175,7 @@ export const fetchMonadTokens = async (): Promise<Token[]> => {
           network: [143]
           liquidity: { gt: 1000 }
         }
-        limit: 100  // ← increase to get more for category coverage
+        limit: 50
         rankings: {
           attribute: trendingScore24
           direction: DESC
@@ -216,9 +194,6 @@ export const fetchMonadTokens = async (): Promise<Token[]> => {
               imageLargeUrl
               imageSmallUrl
               imageThumbUrl
-              tags
-              category
-              categories
             }
           }
         }
@@ -227,104 +202,163 @@ export const fetchMonadTokens = async (): Promise<Token[]> => {
   `;
 
   try {
-    const res = await fetch(GRAPHQL_ENDPOINT, {
+    const response = await fetch(GRAPHQL_ENDPOINT, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': CODEX_API_KEY,
+        'Authorization': CODEX_API_KEY
       },
-      body: JSON.stringify({ query }),
+      body: JSON.stringify({ query })
     });
 
-    const result = await res.json();
+    const result = await response.json();
+
     if (result.errors) {
-      console.error('Codex API errors:', result.errors);
+      console.error("Codex API Errors:", result.errors);
       return [];
     }
 
     const items = result.data?.filterTokens?.results || [];
 
-    const tokens: Token[] = await Promise.all(
-      items
-        .filter((item: any) => {
-          const t = item.token;
-          if (!t || !t.symbol || !t.name) return false;
+    const tokens: Token[] = await Promise.all(items
+      .filter((item: any) => {
+        const t = item.token;
+        if (!t || !t.symbol || !t.name) return false;
 
-          if (isUnwantedToken(t.symbol, t.name, t.info)) {
-            console.log(`Filtered: ${t.symbol} — unwanted`);
-            return false;
+        const s = t.symbol.toUpperCase();
+        const n = t.name.toUpperCase();
+
+        // FILTER OUT UNWANTED TOKENS (muBOND, shMON, AZND, loAZND, etc.)
+        if (isUnwantedToken(t.symbol, t.name)) {
+          console.log(`Filtered out unwanted token: ${t.symbol} (${t.name})`);
+          return false;
+        }
+
+        // STRICT FILTERING: Exclude tokens with junk keywords
+        const junkKeywords = ['FAUCET', 'TEST', 'MOCK', 'EXAMPLE', 'DEMO', 'NFT'];
+        if (junkKeywords.some(keyword => n.includes(keyword) || s.includes(keyword))) {
+          return false;
+        }
+
+        // Filter out tokens with zero or near-zero 24h volume (inactive/honeypot)
+        if (item.volume24 <= 10) {
+          return false;
+        }
+
+        // Filter out tokens with extremely low market cap (less than $100)
+        if (item.marketCap < 100) {
+          return false;
+        }
+
+        return true;
+      })
+      .map(async (item: any) => {
+        const t = item.token;
+        const info = t.info || {};
+
+        const price = parseFloat(item.priceUSD || '0');
+        const change = parseFloat(item.change24 || '0') * 100;
+        let mcap = parseFloat(item.marketCap || '0');
+        const volume = parseFloat(item.volume24 || '0');
+
+        // Fallback for market cap calculation if it's zero
+        if (mcap === 0 && price > 0) {
+          mcap = volume * 10;
+        }
+
+        const isStable = isStableCoin(t.symbol, t.name);
+        const codexImage = info.imageLargeUrl || info.imageSmallUrl || info.imageThumbUrl;
+
+        // Fetch token image
+        let imageUrl = codexImage;
+        try {
+          const fetchedImage = await fetchTokenImage(t.address);
+          if (fetchedImage) {
+            imageUrl = fetchedImage;
           }
+        } catch (error) {
+          console.warn(`Error fetching image for token ${t.address}:`, error);
+          // Fallback to existing image
+        }
 
-          const vol = parseFloat(item.volume24 || '0');
-          const mcap = parseFloat(item.marketCap || '0');
-          if (vol < 10 || mcap < 100) return false;
+        // Calculate the composite score for ranking
+        const score = calculateTokenScore(mcap, volume, change);
 
-          return true;
-        })
-        .map(async (item: any) => {
-          const t = item.token;
-          const info = t.info || {};
-          const price = parseFloat(item.priceUSD || '0');
-          const change = parseFloat(item.change24 || '0') * 100;
-          let mcap = parseFloat(item.marketCap || '0');
-          const vol = parseFloat(item.volume24 || '0');
+        return {
+          id: t.address,
+          symbol: t.symbol,
+          name: t.name,
+          price: price,
+          change24h: change,
+          marketCap: mcap,
+          volume24h: volume,
+          category: guessCategory(t.symbol, t.name),
+          dominance: 0, // Will be calculated later
+          imageUrl: imageUrl,
+          backupImageUrl: codexImage,
+          pairUrl: `https://www.defined.fi/monad/${t.address}`,
+          chainId: 'monad',
+          isStable: isStable,
+          score: score // Add score for sorting
+        };
+      }));
 
-          if (mcap === 0 && price > 0) {
-            mcap = vol * 10;
-          }
-
-          const category = classifyToken(t.symbol, t.name, info);
-
-          // Special case: Wrapped ETH/BTC often = Infrastructure or DeFi
-          if (/(^WETH$|^WBTC$|^WMON$)/i.test(t.symbol)) {
-            category = 'Infrastructure & Tools'; // or 'DeFi Tokens' if in a DEX context
-          }
-
-          let imageUrl = info.imageLargeUrl || info.imageSmallUrl || info.imageThumbUrl;
-          try {
-            const fetched = await fetchTokenImage(t.address);
-            if (fetched) imageUrl = fetched;
-          } catch (e) {
-            console.warn(`Image fail for ${t.address}`);
-          }
-
-          const score = calculateTokenScore(mcap, vol, change);
-
-          return {
-            id: t.address,
-            symbol: t.symbol,
-            name: t.name,
-            price,
-            change24h: change,
-            marketCap: mcap,
-            volume24h: vol,
-            category,
-            dominance: 0,
-            imageUrl,
-            backupImageUrl: info.imageLargeUrl || info.imageSmallUrl,
-            pairUrl: `https://www.defined.fi/monad/${t.address}`,
-            chainId: 'monad',
-            isStable: category === 'Stablecoins',
-            score,
-          };
-        })
-    );
-
+    // Sort tokens by the calculated score in descending order
     tokens.sort((a, b) => b.score - a.score);
-    const totalMcap = tokens.reduce((s, t) => s + t.marketCap, 0);
+
+    // Calculate total market cap for dominance calculation
+    const totalMcap = tokens.reduce((sum, t) => sum + t.marketCap, 0);
+
+    // Calculate dominance for each token
     return tokens.map(t => ({
       ...t,
-      dominance: totalMcap > 0 ? (t.marketCap / totalMcap) * 100 : 0,
+      dominance: totalMcap > 0 ? (t.marketCap / totalMcap) * 100 : 0
     }));
-  } catch (e) {
-    console.error('Fetch failed:', e);
+  } catch (error) {
+    console.error("Failed to fetch Monad tokens:", error);
     return [];
   }
 };
 
-// 🔄 Holder fetcher unchanged (placeholder)
-export const fetchTokenHolders = async (_: string): Promise<Holder[]> => {
-  await new Promise(r => setTimeout(r, 1500));
-  // ... (same as before)
-  return [];
+/**
+ * Fetches simulated token holder data.
+ * This is a placeholder function. In a real implementation, you would query
+ * a blockchain explorer API or an indexer for actual on-chain holder data.
+ * The current simulation is not accurate.
+ */
+export const fetchTokenHolders = async (tokenAddress: string): Promise<Holder[]> => {
+  // --- SIMULATION LOGIC (PLACEHOLDER) ---
+  // In reality, this should query an API like BlockVision, Etherscan, or a custom indexer.
+  // The Codex API might not provide detailed holder lists directly.
+  // Example using a hypothetical API:
+  // const response = await fetch(`https://api.blockchainexplorer.com/holders/${tokenAddress}`);
+  // const data = await response.json();
+  // return data.holders.map(holder => ({ ... }));
+  // -------------------------------
+
+  console.warn("Using simulated holder data for", tokenAddress);
+  // Simulate delay
+  await new Promise(resolve => setTimeout(resolve, 1500));
+
+  const holders: Holder[] = [];
+  const numHolders = 50 + Math.floor(Math.random() * 50); // Simulate 50-100 holders
+
+  let totalSupplySim = 0;
+  // First pass: generate balances and calculate total supply
+  for (let i = 0; i < numHolders; i++) {
+    const balance = Math.random() * 1000000; // Random balance up to 1M
+    totalSupplySim += balance;
+    holders.push({
+      address: `0x${Array.from({length: 40}, () => Math.floor(Math.random() * 16).toString(16)).join('')}`,
+      balance: balance,
+      percentage: 0, // Placeholder, will calculate later
+      isContract: Math.random() > 0.7, // 30% chance it's a contract
+    });
+  }
+
+  // Second pass: calculate percentage based on simulated total supply
+  return holders.map(holder => ({
+    ...holder,
+    percentage: (holder.balance / totalSupplySim) * 100
+  }));
 };
