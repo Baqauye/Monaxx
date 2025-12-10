@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { PLAYFUL_COLORS, PROFESSIONAL_COLORS } from './constants';
-import { Token, Mood, ViewMode, CHAINS, ChainConfig } from './types';
+import { Token, Mood, ViewMode, CHAINS, ChainConfig, TOKEN_CATEGORIES } from './types';
 import Treemap from './components/Treemap';
 import DetailModal from './components/DetailModal';
 import { fetchTokensForNetwork } from './services/tokenService';
+import { getCategoryEmoji } from './services/categoryClassifier';
 
 const BarChart2Icon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -54,7 +55,7 @@ const App: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const [isDataLoading, setIsDataLoading] = useState(true);
-  const [activeChain, setActiveChain] = useState<ChainConfig>(CHAINS[0]); // default: Monad
+  const [activeChain, setActiveChain] = useState<ChainConfig>(CHAINS[0]);
   const [showChainSelector, setShowChainSelector] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -101,27 +102,16 @@ const App: React.FC = () => {
     }
   }, [selectedCategory, tokens]);
 
-  // Inside App.tsx, after tokens are loaded
-const ALL_CATEGORIES: TokenCategory[] = [
-  'Meme Coins',
-  'AI Tokens',
-  'Stablecoins',
-  'DeFi Tokens',
-  'Governance Tokens',
-  'Utility Tokens',
-  'GameFi Tokens',
-  'RWA Tokens',
-  'Infrastructure & Tools',
-  'Privacy Tokens'
-];
+  // Get categories that exist in current data
+  const availableCategories = Array.from(
+    new Set(tokens.map(t => t.category))
+  ).sort();
 
-const uniqueCategories = Array.from(
-  new Set([
-    ...ALL_CATEGORIES.filter(cat => tokens.some(t => t.category === cat)),
-    // fallback if new category appears
-    ...tokens.map(t => t.category).filter(cat => !ALL_CATEGORIES.includes(cat as any))
-  ])
-);
+  // Get category counts
+  const categoryCounts = tokens.reduce((acc, token) => {
+    acc[token.category] = (acc[token.category] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
 
   const handleChainSelect = (chain: ChainConfig) => {
     setActiveChain(chain);
@@ -197,23 +187,34 @@ const uniqueCategories = Array.from(
         {/* Category Filter */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2">
           <div className="flex flex-wrap gap-2 justify-center">
-            {['All', ...uniqueCategories].map(cat => (
-              <button
-                key={cat}
-                onClick={() => setSelectedCategory(cat)}
-                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                  selectedCategory === cat
-                    ? (mood === 'Playful'
-                        ? 'bg-indigo-100 text-indigo-800'
-                        : 'bg-indigo-900 text-indigo-200')
-                    : (mood === 'Playful'
-                        ? 'bg-white text-slate-700 hover:bg-slate-100'
-                        : 'bg-slate-800 text-slate-300 hover:bg-slate-700')
-                }`}
-              >
-                {cat}
-              </button>
-            ))}
+            {TOKEN_CATEGORIES.map(cat => {
+              const count = cat === 'All' ? tokens.length : (categoryCounts[cat] || 0);
+              const hasTokens = cat === 'All' || availableCategories.includes(cat);
+              
+              if (!hasTokens && cat !== 'All') return null;
+              
+              return (
+                <button
+                  key={cat}
+                  onClick={() => setSelectedCategory(cat)}
+                  className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors flex items-center gap-1.5 ${
+                    selectedCategory === cat
+                      ? (mood === 'Playful'
+                          ? 'bg-indigo-100 text-indigo-800'
+                          : 'bg-indigo-900 text-indigo-200')
+                      : (mood === 'Playful'
+                          ? 'bg-white text-slate-700 hover:bg-slate-100'
+                          : 'bg-slate-800 text-slate-300 hover:bg-slate-700')
+                  }`}
+                >
+                  <span>{getCategoryEmoji(cat)}</span>
+                  <span>{cat}</span>
+                  {count > 0 && (
+                    <span className="text-xs opacity-60 ml-1">({count})</span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </div>
       </header>
@@ -231,6 +232,11 @@ const uniqueCategories = Array.from(
               <span className="text-slate-600 dark:text-slate-400">
                 {isDataLoading ? 'Updating...' : `Live Data · ${activeChain.name}`}
               </span>
+              {!isDataLoading && filteredTokens.length > 0 && (
+                <span className="text-slate-600 dark:text-slate-400">
+                  · {filteredTokens.length} tokens
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -257,14 +263,14 @@ const uniqueCategories = Array.from(
                   Scanning {activeChain.name}...
                 </div>
               </div>
-            ) : tokens.length === 0 ? (
+            ) : filteredTokens.length === 0 ? (
               <div className="text-center opacity-60 p-8">
-                <p className="mb-4">No tokens found matching current criteria.</p>
+                <p className="mb-4">No tokens found in the "{selectedCategory}" category.</p>
                 <button
-                  onClick={loadMarketData}
+                  onClick={() => setSelectedCategory('All')}
                   className="px-4 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition"
                 >
-                  Retry Fetch
+                  View All Tokens
                 </button>
               </div>
             ) : dimensions.width > 0 && dimensions.height > 0 ? (
@@ -287,25 +293,20 @@ const uniqueCategories = Array.from(
           className="fixed inset-0 z-50 md:hidden"
           onClick={() => setShowChainSelector(false)}
         >
-          {/* Backdrop */}
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-fade-in" />
           
-          {/* Bottom Sheet */}
           <div 
             className="absolute bottom-0 left-0 right-0 bg-white dark:bg-slate-900 rounded-t-3xl shadow-2xl animate-slide-up"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Handle */}
             <div className="flex justify-center pt-3 pb-2">
               <div className="w-12 h-1.5 bg-slate-300 dark:bg-slate-600 rounded-full" />
             </div>
             
-            {/* Header */}
             <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700">
               <h3 className="text-lg font-semibold text-center">Select Chain</h3>
             </div>
             
-            {/* Chain Options */}
             <div className="px-4 py-2 max-h-[70vh] overflow-y-auto">
               {CHAINS.map((chain) => (
                 <button
@@ -340,7 +341,6 @@ const uniqueCategories = Array.from(
               ))}
             </div>
             
-            {/* Safe area spacing for mobile */}
             <div className="h-8" />
           </div>
         </div>
