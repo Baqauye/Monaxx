@@ -101,9 +101,27 @@ const App: React.FC = () => {
     }
   }, [selectedCategory, tokens]);
 
-  const uniqueCategories = Array.from(
-    new Set(tokens.map(t => t.category))
-  ).filter(cat => cat !== 'All');
+  // Inside App.tsx, after tokens are loaded
+const ALL_CATEGORIES: TokenCategory[] = [
+  'Meme Coins',
+  'AI Tokens',
+  'Stablecoins',
+  'DeFi Tokens',
+  'Governance Tokens',
+  'Utility Tokens',
+  'GameFi Tokens',
+  'RWA Tokens',
+  'Infrastructure & Tools',
+  'Privacy Tokens'
+];
+
+const uniqueCategories = Array.from(
+  new Set([
+    ...ALL_CATEGORIES.filter(cat => tokens.some(t => t.category === cat)),
+    // fallback if new category appears
+    ...tokens.map(t => t.category).filter(cat => !ALL_CATEGORIES.includes(cat as any))
+  ])
+);
 
   const handleChainSelect = (chain: ChainConfig) => {
     setActiveChain(chain);
