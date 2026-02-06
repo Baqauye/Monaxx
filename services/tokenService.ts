@@ -1,6 +1,7 @@
 // services/tokenService.ts
-import { Token } from '../types';
+import { ChainConfig, Token } from '../types';
 import { fetchMonadTokens } from './monadService';
+import { fetchSolanaTokens } from './solanaService';
 import { classifyToken } from './categoryClassifier';
 
 const CODEX_API_KEY = '6a28836dea12a4050f2e0256b585eef55f75aeb8';
@@ -75,13 +76,9 @@ const fetchTokensForChain = async (networkId: number): Promise<Token[]> => {
         const info = t.info || {};
 
         const price = parseFloat(item.priceUSD || '0');
-        const change = parseFloat(item.change24 || '0') * 100;
-        let mcap = parseFloat(item.marketCap || '0');
+        const change = parseFloat(item.change24 || '0');
+        const mcap = parseFloat(item.marketCap || '0');
         const volume = parseFloat(item.volume24 || '0');
-
-        if (mcap === 0 && price > 0) {
-          mcap = volume * 10;
-        }
 
         const category = classifyToken(t.symbol, t.name);
         const isStable = category === 'Stablecoins';
@@ -145,11 +142,15 @@ const getChainSlug = (networkId: number): string => {
 /**
  * Main export: Fetch tokens for any supported network
  */
-export const fetchTokensForNetwork = async (networkId: number): Promise<Token[]> => {
+export const fetchTokensForNetwork = async (chain: ChainConfig): Promise<Token[]> => {
   // Use specialized Monad service if available, otherwise use generic
-  if (networkId === 143) {
+  if (chain.id === 143) {
     return fetchMonadTokens();
   }
+
+  if (chain.dataSource === 'solana' || chain.shortName === 'SOL' || chain.name.toLowerCase().includes('solana')) {
+    return fetchSolanaTokens();
+  }
   
-  return fetchTokensForChain(networkId);
+  return fetchTokensForChain(chain.id);
 };

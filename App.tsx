@@ -77,12 +77,14 @@ const App: React.FC = () => {
   const loadMarketData = async () => {
     setIsDataLoading(true);
     try {
-      const liveTokens = await fetchTokensForNetwork(activeChain.id);
+      const liveTokens = await fetchTokensForNetwork(activeChain);
       if (liveTokens) {
         setTokens(liveTokens);
       }
     } catch (e) {
       console.error('Failed to load market data', e);
+      setTokens([]);
+      setFilteredTokens([]);
     } finally {
       setIsDataLoading(false);
     }
@@ -116,6 +118,10 @@ const App: React.FC = () => {
   const handleChainSelect = (chain: ChainConfig) => {
     setActiveChain(chain);
     setShowChainSelector(false);
+    setSelectedCategory('All');
+    setSelectedToken(null);
+    setTokens([]);
+    setFilteredTokens([]);
   };
 
   return (

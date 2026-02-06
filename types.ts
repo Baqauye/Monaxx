@@ -40,6 +40,7 @@ export interface ChainConfig {
   name: string;
   shortName: string;
   rpcUrl?: string;
+  dataSource?: 'codex' | 'solana';
 }
 
 export const CHAINS: ChainConfig[] = [
@@ -47,24 +48,16 @@ export const CHAINS: ChainConfig[] = [
   { id: 1, name: 'Ethereum', shortName: 'ETH' },
   { id: 56, name: 'BNB Chain', shortName: 'BNB' },
   { id: 8453, name: 'Base', shortName: 'Base' },
-  { id: 101, name: 'Solana', shortName: 'SOL' },
+  { id: 101, name: 'Solana', shortName: 'SOL', dataSource: 'solana' },
   { id: 530, name: 'Sonic', shortName: 'Sonic' },
 ];
 
 // Comprehensive token categories
 export const TOKEN_CATEGORIES = [
   'All',
-  'Meme Coins',
-  'AI Tokens',
-  'Stablecoins',
-  'DeFi Tokens',
-  'Governance Tokens',
-  'Utility Tokens',
-  'GameFi Tokens',
-  'RWA Tokens',
-  'Infrastructure & Tools',
-  'Privacy Tokens',
-  'Other'
+  'Memes',
+  'Wrapped',
+  'Stablecoins'
 ] as const;
 
-export type TokenCategory = typeof TOKEN_CATEGORIES[number];
+export type TokenCategory = typeof TOKEN_CATEGORIES[number] | 'Other';
