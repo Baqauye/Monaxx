@@ -3,6 +3,7 @@ import { classifyToken } from './categoryClassifier';
 
 const COINGECKO_BASE_URL = 'https://api.coingecko.com/api/v3';
 const SOLANA_CATEGORY = 'solana-ecosystem';
+ codex/restore-app-features-and-fix-solana-configuration-qw5nir
 const PLATFORM_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
 let cachedSolanaPlatformIds: Set<string> | null = null;
@@ -33,6 +34,7 @@ const fetchSolanaPlatformIds = async (): Promise<Set<string>> => {
   cachedPlatformsAt = Date.now();
   return solanaIds;
 };
+main
 
 const calculateTokenScore = (marketCap: number, volume24: number, change24: number): number => {
   if (marketCap <= 0 || volume24 <= 0) {
@@ -69,6 +71,7 @@ export const fetchSolanaTokens = async (): Promise<Token[]> => {
     }
 
     const items = await response.json();
+   codex/restore-app-features-and-fix-solana-configuration-qw5nir
     let solanaIds: Set<string> | null = null;
 
     try {
@@ -76,13 +79,18 @@ export const fetchSolanaTokens = async (): Promise<Token[]> => {
     } catch (error) {
       console.warn('Failed to load CoinGecko platform list, using raw Solana category data.', error);
     }
+=======
+ main
 
     const tokens: Token[] = items
       .filter((item: any) => {
         if (!item?.symbol || !item?.name) return false;
         if (!item.market_cap || item.market_cap <= 0) return false;
         if (!item.total_volume || item.total_volume <= 0) return false;
+  codex/restore-app-features-and-fix-solana-configuration-qw5nir
         if (solanaIds && !solanaIds.has(item.id) && item.id !== 'solana') return false;
+
+ main
         return true;
       })
       .map((item: any) => {

@@ -232,8 +232,12 @@ export const fetchMonadTokens = async (): Promise<Token[]> => {
         const mcap = parseFloat(item.marketCap || '0');
         const volume = parseFloat(item.volume24 || '0');
 
+        codex/restore-app-features-and-fix-solana-configuration-qw5nir
         const category = guessCategory(t.symbol, t.name);
         const isStable = category === 'Stablecoins';
+
+        const isStable = isStableCoin(t.symbol, t.name);
+        main
         const codexImage = info.imageLargeUrl || info.imageSmallUrl || info.imageThumbUrl;
 
         // Fetch token image
