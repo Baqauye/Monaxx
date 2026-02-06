@@ -257,14 +257,9 @@ export const fetchMonadTokens = async (): Promise<Token[]> => {
         const info = t.info || {};
 
         const price = parseFloat(item.priceUSD || '0');
-        const change = parseFloat(item.change24 || '0') * 100;
-        let mcap = parseFloat(item.marketCap || '0');
+        const change = parseFloat(item.change24 || '0');
+        const mcap = parseFloat(item.marketCap || '0');
         const volume = parseFloat(item.volume24 || '0');
-
-        // Fallback for market cap calculation if it's zero
-        if (mcap === 0 && price > 0) {
-          mcap = volume * 10;
-        }
 
         const isStable = isStableCoin(t.symbol, t.name);
         const codexImage = info.imageLargeUrl || info.imageSmallUrl || info.imageThumbUrl;

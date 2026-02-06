@@ -167,6 +167,14 @@ const TokenTile: React.FC<TokenTileProps> = ({ token, width, height, mood, onCli
     opacity: 0.95,
   };
 
+  const dominanceStyle: React.CSSProperties = {
+    ...baseTextStyle,
+    fontSize: `${Math.max(fontSizes.price * 0.85, 10)}px`,
+    fontWeight: 600,
+    marginTop: '2px',
+    opacity: 0.85,
+  };
+
   const imgStyle: React.CSSProperties = {
     width: `${fontSizes.icon}px`,
     height: `${fontSizes.icon}px`,
@@ -192,6 +200,13 @@ const TokenTile: React.FC<TokenTileProps> = ({ token, width, height, mood, onCli
     if (abs >= 100) return abs.toFixed(0);
     if (abs >= 10) return abs.toFixed(1);
     return abs.toFixed(2);
+  };
+
+  const formatDominance = (dominance: number) => {
+    if (dominance >= 10) return dominance.toFixed(2);
+    if (dominance >= 1) return dominance.toFixed(2);
+    if (dominance >= 0.1) return dominance.toFixed(3);
+    return dominance.toFixed(4);
   };
 
   // Render logic based on tile size
@@ -258,7 +273,7 @@ const TokenTile: React.FC<TokenTileProps> = ({ token, width, height, mood, onCli
         </>
       );
     } else {
-      // Medium+ tiles: Icon + Symbol + Change % + Price
+      // Medium+ tiles: Icon + Symbol + Change % + Price (and Dominance for large tiles)
       return (
         <>
           {showIcon && (currentImgSrc && !imageError ? (
@@ -289,6 +304,11 @@ const TokenTile: React.FC<TokenTileProps> = ({ token, width, height, mood, onCli
           <div style={priceStyle}>
             ${formatPrice(token.price)}
           </div>
+          {(isLarge || isXLarge) && (
+            <div style={dominanceStyle}>
+              DOM: {formatDominance(token.dominance)}%
+            </div>
+          )}
         </>
       );
     }
