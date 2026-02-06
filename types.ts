@@ -54,17 +54,9 @@ export const CHAINS: ChainConfig[] = [
 // Comprehensive token categories
 export const TOKEN_CATEGORIES = [
   'All',
-  'Meme Coins',
-  'AI Tokens',
-  'Stablecoins',
-  'DeFi Tokens',
-  'Governance Tokens',
-  'Utility Tokens',
-  'GameFi Tokens',
-  'RWA Tokens',
-  'Infrastructure & Tools',
-  'Privacy Tokens',
-  'Other'
+  'Memes',
+  'Wrapped',
+  'Stablecoins'
 ] as const;
 
-export type TokenCategory = typeof TOKEN_CATEGORIES[number];
+export type TokenCategory = typeof TOKEN_CATEGORIES[number] | 'Other';
