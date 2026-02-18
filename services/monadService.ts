@@ -1,6 +1,5 @@
 // services/monadService.ts
 import { Token, Holder } from '../types';
-import { classifyToken } from './categoryClassifier';
 
 const CODEX_API_KEY = '6a28836dea12a4050f2e0256b585eef55f75aeb8';
 const GRAPHQL_ENDPOINT = 'https://graph.codex.io/graphql';
@@ -65,7 +64,37 @@ const isUnwantedToken = (symbol: string, name: string): boolean => {
   return false;
 };
 
-const guessCategory = (symbol: string, name: string): string => classifyToken(symbol, name);
+/**
+ * Guesses the category of a token based on its symbol or name.
+ */
+const guessCategory = (symbol: string, name: string): string => {
+  const s = (symbol || '').toUpperCase();
+  const n = (name || '').toUpperCase();
+
+  // Check for stablecoins first
+  if (isStableCoin(s, n)) {
+    return 'Stable';
+  }
+
+  if (s === 'WMON' || s === 'WETH' || s === 'WBTC' || n.includes('WRAPPED')) {
+    return 'Wrapped';
+  }
+  if (s.startsWith('ST') || s.startsWith('EZ') || n.includes('STAKED') || n.includes('LIQUID')) {
+    return 'Staked';
+  }
+  if (n.includes(' AI') || n.includes('GPT') || s.includes('AI') || n.includes('INTELLIGENCE') || n.includes('AGENT')) {
+    return 'AI';
+  }
+  if (
+    n.includes('SWAP') || n.includes('DEX') || n.includes('FINANCE') ||
+    n.includes('PROTOCOL') || n.includes('YIELD') || n.includes('PERP') ||
+    n.includes('DAO')
+  ) {
+    return 'DeFi';
+  }
+
+  return 'Meme';
+};
 
 /**
  * Fetches a token's image from multiple sources, prioritizing Dexscreener.
@@ -232,12 +261,7 @@ export const fetchMonadTokens = async (): Promise<Token[]> => {
         const mcap = parseFloat(item.marketCap || '0');
         const volume = parseFloat(item.volume24 || '0');
 
-        codex/restore-app-features-and-fix-solana-configuration-qw5nir
-        const category = guessCategory(t.symbol, t.name);
-        const isStable = category === 'Stablecoins';
-
         const isStable = isStableCoin(t.symbol, t.name);
-        main
         const codexImage = info.imageLargeUrl || info.imageSmallUrl || info.imageThumbUrl;
 
         // Fetch token image
@@ -263,7 +287,7 @@ export const fetchMonadTokens = async (): Promise<Token[]> => {
           change24h: change,
           marketCap: mcap,
           volume24h: volume,
-          category: category,
+          category: guessCategory(t.symbol, t.name),
           dominance: 0, // Will be calculated later
           imageUrl: imageUrl,
           backupImageUrl: codexImage,
