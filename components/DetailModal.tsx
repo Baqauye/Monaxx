@@ -52,7 +52,6 @@ const DetailModal: React.FC<DetailModalProps> = ({ token, onClose, mood }) => {
   };
 
   const isPositive = token.change24h >= 0;
-  const primaryCtaLabel = token.chainId === 'solana' ? 'View on CoinGecko' : 'View on Defined.fi';
 
   const overlayClass = mood === 'Playful'
     ? 'bg-black/20 backdrop-blur-sm'
@@ -148,7 +147,7 @@ const DetailModal: React.FC<DetailModalProps> = ({ token, onClose, mood }) => {
                 : 'bg-indigo-600 text-white rounded-none hover:bg-indigo-500'
             }`}
           >
-            <ActivityIcon /> {primaryCtaLabel}
+            <ActivityIcon /> View on Defined.fi
           </a>
           <button className={`p-3 transition-colors ${
             mood === 'Playful'
