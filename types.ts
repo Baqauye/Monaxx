@@ -43,12 +43,9 @@ export interface ChainConfig {
 }
 
 export const CHAINS: ChainConfig[] = [
-  { id: 143, name: 'Monad Mainnet', shortName: 'Monad' },
   { id: 1, name: 'Ethereum', shortName: 'ETH' },
   { id: 56, name: 'BNB Chain', shortName: 'BNB' },
   { id: 8453, name: 'Base', shortName: 'Base' },
-  { id: 101, name: 'Solana', shortName: 'SOL' },
-  { id: 530, name: 'Sonic', shortName: 'Sonic' },
 ];
 
 // Comprehensive token categories

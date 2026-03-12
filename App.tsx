@@ -39,9 +39,6 @@ const ChainIcon = ({ chain }: { chain: ChainConfig }) => {
     1: 'Ξ',
     56: 'B',
     8453: 'B',
-    101: '◎',
-    143: 'M',
-    530: '⚡',
   };
   return <span className="text-xs font-bold">{icons[chain.id] || chain.shortName.charAt(0)}</span>;
 };
@@ -57,6 +54,7 @@ const App: React.FC = () => {
   const [isDataLoading, setIsDataLoading] = useState(true);
   const [activeChain, setActiveChain] = useState<ChainConfig>(CHAINS[0]);
   const [showChainSelector, setShowChainSelector] = useState(false);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -80,6 +78,7 @@ const App: React.FC = () => {
       const liveTokens = await fetchTokensForNetwork(activeChain.id);
       if (liveTokens) {
         setTokens(liveTokens);
+        setLastUpdatedAt(new Date());
       }
     } catch (e) {
       console.error('Failed to load market data', e);
@@ -119,8 +118,8 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 text-slate-900 dark:text-slate-100 transition-colors duration-300">
-      <header className="sticky top-0 z-10 backdrop-blur-md bg-white/80 dark:bg-slate-900/80 border-b border-slate-200 dark:border-slate-700">
+    <div className="min-h-screen bg-[#081433] text-slate-100 transition-colors duration-300">
+      <header className="sticky top-0 z-10 backdrop-blur-md bg-[#0a1638]/90 border-b border-white/10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16">
           <div className="flex items-center gap-3">
             <div className={`flex items-center justify-center w-10 h-10 rounded-full font-bold ${
@@ -135,7 +134,7 @@ const App: React.FC = () => {
 
           {/* Desktop Chain Selector */}
           <div className="hidden md:flex flex-1 justify-center">
-            <div className="flex gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-lg">
+            <div className="flex gap-1 p-1 bg-[#11214b] rounded-lg">
               {CHAINS.map(chain => (
                 <button
                   key={chain.id}
@@ -143,8 +142,8 @@ const App: React.FC = () => {
                   className={`px-3 py-1.5 text-sm font-medium rounded-md flex items-center gap-1.5 transition-colors ${
                     activeChain.id === chain.id
                       ? (mood === 'Playful'
-                          ? 'bg-white text-slate-900 shadow-sm'
-                          : 'bg-slate-700 text-white')
+                          ? 'bg-[#1a2f68] text-slate-100 shadow-sm'
+                          : 'bg-[#1a2f68] text-slate-100')
                       : (mood === 'Playful'
                           ? 'text-slate-600 hover:bg-slate-200'
                           : 'text-slate-400 hover:bg-slate-700/50')
@@ -222,18 +221,18 @@ const App: React.FC = () => {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
           <div>
-            <h2 className="text-xl font-bold">
+            <h2 className="text-xl font-bold text-slate-100">
               {viewMode === 'TreeMap' ? 'Top Tokens by Market Cap' : 'Token Holder Distribution'}
             </h2>
             <div className="flex items-center gap-2 text-xs mt-1">
               <span className={`w-2 h-2 rounded-full ${
                 isDataLoading ? 'bg-yellow-500 animate-pulse' : 'bg-green-500'
               }`}></span>
-              <span className="text-slate-600 dark:text-slate-400">
+              <span className="text-slate-300">
                 {isDataLoading ? 'Updating...' : `Live Data · ${activeChain.name}`}
               </span>
               {!isDataLoading && filteredTokens.length > 0 && (
-                <span className="text-slate-600 dark:text-slate-400">
+                <span className="text-slate-300">
                   · {filteredTokens.length} tokens
                 </span>
               )}
@@ -243,14 +242,12 @@ const App: React.FC = () => {
 
         <div
           ref={containerRef}
-          className="flex-1 min-h-[500px] w-full rounded-2xl overflow-hidden relative transition-all duration-500 flex items-center justify-center border border-black/5 dark:border-white/5"
+          className="flex-1 min-h-[560px] w-full rounded-2xl overflow-hidden relative transition-all duration-500 flex items-center justify-center border border-[#1b2a52]"
           style={{
             boxShadow: mood === 'Playful'
               ? '0 20px 40px -10px rgba(0,0,0,0.05)'
               : 'none',
-            backgroundColor: mood === 'Playful'
-              ? 'rgba(255,255,255,0.6)'
-              : 'rgba(15, 23, 42, 0.6)',
+            backgroundColor: '#0b1638',
           }}
         >
           {viewMode === 'TreeMap' ? (
@@ -284,6 +281,12 @@ const App: React.FC = () => {
               />
             ) : null
           ) : null}
+
+          {lastUpdatedAt && !isDataLoading && filteredTokens.length > 0 && (
+            <div className="pointer-events-none absolute bottom-3 right-4 text-xs text-slate-300">
+              Generated: {lastUpdatedAt.toISOString().replace('T', ' ').slice(0, 16)} UTC
+            </div>
+          )}
         </div>
       </main>
 
