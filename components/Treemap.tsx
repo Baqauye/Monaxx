@@ -30,9 +30,9 @@ const Treemap: React.FC<TreemapProps> = ({ data, width, height, mood, selectedId
     // Use d3.treemap with squarify for optimal layout
     const treemapLayout = d3.treemap()
       .size([width, height])
-      .paddingInner(mood === 'Playful' ? 3 : 1)
-      .paddingOuter(mood === 'Playful' ? 3 : 1)
-      .tile(d3.treemapSquarify.ratio(1.5)) // Squarify algorithm for better aspect ratios
+      .paddingInner(2)
+      .paddingOuter(2)
+      .tile(d3.treemapSquarify.ratio(1.25)) // Squarify algorithm for better aspect ratios
       .round(true);
 
     treemapLayout(rootNode as any);

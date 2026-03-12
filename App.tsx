@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { PLAYFUL_COLORS, PROFESSIONAL_COLORS } from './constants';
-import { Token, Mood, ViewMode, CHAINS, ChainConfig, TOKEN_CATEGORIES } from './types';
+import { Token, Mood, ViewMode, CHAINS, ChainConfig } from './types';
 import Treemap from './components/Treemap';
 import DetailModal from './components/DetailModal';
 import { fetchTokensForNetwork } from './services/tokenService';
-import { getCategoryEmoji } from './services/categoryClassifier';
 
 const BarChart2Icon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -39,11 +38,31 @@ const ChainIcon = ({ chain }: { chain: ChainConfig }) => {
     1: 'Ξ',
     56: 'B',
     8453: 'B',
-    101: '◎',
-    143: 'M',
-    530: '⚡',
   };
   return <span className="text-xs font-bold">{icons[chain.id] || chain.shortName.charAt(0)}</span>;
+};
+
+/**
+ * Why: keeps treemap density readable across mobile and desktop by capping rendered tiles
+ * according to available viewport area instead of always showing the full dataset.
+ */
+const getAdaptiveTokenLimit = (width: number, height: number): number => {
+  if (width <= 0 || height <= 0) {
+    return 36;
+  }
+
+  const area = width * height;
+  const isMobile = width < 768;
+
+  if (isMobile) {
+    if (area < 180000) return 24;
+    if (area < 260000) return 30;
+    return 36;
+  }
+
+  if (area < 420000) return 40;
+  if (area < 720000) return 52;
+  return 60;
 };
 
 const App: React.FC = () => {
@@ -52,11 +71,11 @@ const App: React.FC = () => {
   const [filteredTokens, setFilteredTokens] = useState<Token[]>([]);
   const [mood, setMood] = useState<Mood>('Playful');
   const [selectedToken, setSelectedToken] = useState<Token | null>(null);
-  const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const [isDataLoading, setIsDataLoading] = useState(true);
   const [activeChain, setActiveChain] = useState<ChainConfig>(CHAINS[0]);
   const [showChainSelector, setShowChainSelector] = useState(false);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -80,6 +99,7 @@ const App: React.FC = () => {
       const liveTokens = await fetchTokensForNetwork(activeChain.id);
       if (liveTokens) {
         setTokens(liveTokens);
+        setLastUpdatedAt(new Date());
       }
     } catch (e) {
       console.error('Failed to load market data', e);
@@ -95,23 +115,9 @@ const App: React.FC = () => {
   }, [activeChain]);
 
   useEffect(() => {
-    if (selectedCategory === 'All') {
-      setFilteredTokens(tokens);
-    } else {
-      setFilteredTokens(tokens.filter(t => t.category === selectedCategory));
-    }
-  }, [selectedCategory, tokens]);
-
-  // Get categories that exist in current data
-  const availableCategories = Array.from(
-    new Set(tokens.map(t => t.category))
-  ).sort();
-
-  // Get category counts
-  const categoryCounts = tokens.reduce((acc, token) => {
-    acc[token.category] = (acc[token.category] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
+    const adaptiveLimit = getAdaptiveTokenLimit(dimensions.width, dimensions.height);
+    setFilteredTokens(tokens.slice(0, adaptiveLimit));
+  }, [tokens, dimensions.width, dimensions.height]);
 
   const handleChainSelect = (chain: ChainConfig) => {
     setActiveChain(chain);
@@ -119,8 +125,8 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 text-slate-900 dark:text-slate-100 transition-colors duration-300">
-      <header className="sticky top-0 z-10 backdrop-blur-md bg-white/80 dark:bg-slate-900/80 border-b border-slate-200 dark:border-slate-700">
+    <div className="min-h-screen bg-[#081433] text-slate-100 transition-colors duration-300">
+      <header className="sticky top-0 z-10 backdrop-blur-md bg-[#0a1638]/90 border-b border-white/10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16">
           <div className="flex items-center gap-3">
             <div className={`flex items-center justify-center w-10 h-10 rounded-full font-bold ${
@@ -135,7 +141,7 @@ const App: React.FC = () => {
 
           {/* Desktop Chain Selector */}
           <div className="hidden md:flex flex-1 justify-center">
-            <div className="flex gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-lg">
+            <div className="flex gap-1 p-1 bg-[#11214b] rounded-lg">
               {CHAINS.map(chain => (
                 <button
                   key={chain.id}
@@ -143,8 +149,8 @@ const App: React.FC = () => {
                   className={`px-3 py-1.5 text-sm font-medium rounded-md flex items-center gap-1.5 transition-colors ${
                     activeChain.id === chain.id
                       ? (mood === 'Playful'
-                          ? 'bg-white text-slate-900 shadow-sm'
-                          : 'bg-slate-700 text-white')
+                          ? 'bg-[#1a2f68] text-slate-100 shadow-sm'
+                          : 'bg-[#1a2f68] text-slate-100')
                       : (mood === 'Playful'
                           ? 'text-slate-600 hover:bg-slate-200'
                           : 'text-slate-400 hover:bg-slate-700/50')
@@ -184,56 +190,23 @@ const App: React.FC = () => {
           </div>
         </div>
 
-        {/* Category Filter */}
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2">
-          <div className="flex flex-wrap gap-2 justify-center">
-            {TOKEN_CATEGORIES.map(cat => {
-              const count = cat === 'All' ? tokens.length : (categoryCounts[cat] || 0);
-              const hasTokens = cat === 'All' || availableCategories.includes(cat);
-              
-              if (!hasTokens && cat !== 'All') return null;
-              
-              return (
-                <button
-                  key={cat}
-                  onClick={() => setSelectedCategory(cat)}
-                  className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors flex items-center gap-1.5 ${
-                    selectedCategory === cat
-                      ? (mood === 'Playful'
-                          ? 'bg-indigo-100 text-indigo-800'
-                          : 'bg-indigo-900 text-indigo-200')
-                      : (mood === 'Playful'
-                          ? 'bg-white text-slate-700 hover:bg-slate-100'
-                          : 'bg-slate-800 text-slate-300 hover:bg-slate-700')
-                  }`}
-                >
-                  <span>{getCategoryEmoji(cat)}</span>
-                  <span>{cat}</span>
-                  {count > 0 && (
-                    <span className="text-xs opacity-60 ml-1">({count})</span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </div>
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
           <div>
-            <h2 className="text-xl font-bold">
+            <h2 className="text-xl font-bold text-slate-100">
               {viewMode === 'TreeMap' ? 'Top Tokens by Market Cap' : 'Token Holder Distribution'}
             </h2>
             <div className="flex items-center gap-2 text-xs mt-1">
               <span className={`w-2 h-2 rounded-full ${
                 isDataLoading ? 'bg-yellow-500 animate-pulse' : 'bg-green-500'
               }`}></span>
-              <span className="text-slate-600 dark:text-slate-400">
+              <span className="text-slate-300">
                 {isDataLoading ? 'Updating...' : `Live Data · ${activeChain.name}`}
               </span>
               {!isDataLoading && filteredTokens.length > 0 && (
-                <span className="text-slate-600 dark:text-slate-400">
+                <span className="text-slate-300">
                   · {filteredTokens.length} tokens
                 </span>
               )}
@@ -243,14 +216,12 @@ const App: React.FC = () => {
 
         <div
           ref={containerRef}
-          className="flex-1 min-h-[500px] w-full rounded-2xl overflow-hidden relative transition-all duration-500 flex items-center justify-center border border-black/5 dark:border-white/5"
+          className="flex-1 min-h-[560px] w-full rounded-2xl overflow-hidden relative transition-all duration-500 flex items-center justify-center border border-[#1b2a52]"
           style={{
             boxShadow: mood === 'Playful'
               ? '0 20px 40px -10px rgba(0,0,0,0.05)'
               : 'none',
-            backgroundColor: mood === 'Playful'
-              ? 'rgba(255,255,255,0.6)'
-              : 'rgba(15, 23, 42, 0.6)',
+            backgroundColor: '#0b1638',
           }}
         >
           {viewMode === 'TreeMap' ? (
@@ -265,12 +236,12 @@ const App: React.FC = () => {
               </div>
             ) : filteredTokens.length === 0 ? (
               <div className="text-center opacity-60 p-8">
-                <p className="mb-4">No tokens found in the "{selectedCategory}" category.</p>
+                <p className="mb-4">No tokens found for the selected chain.</p>
                 <button
-                  onClick={() => setSelectedCategory('All')}
+                  onClick={() => loadMarketData()}
                   className="px-4 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition"
                 >
-                  View All Tokens
+                  Retry
                 </button>
               </div>
             ) : dimensions.width > 0 && dimensions.height > 0 ? (
@@ -284,6 +255,12 @@ const App: React.FC = () => {
               />
             ) : null
           ) : null}
+
+          {lastUpdatedAt && !isDataLoading && filteredTokens.length > 0 && (
+            <div className="pointer-events-none absolute bottom-3 right-4 text-xs text-slate-300">
+              Generated: {lastUpdatedAt.toISOString().replace('T', ' ').slice(0, 16)} UTC
+            </div>
+          )}
         </div>
       </main>
 
