@@ -43,6 +43,9 @@ export interface ChainConfig {
 }
 
 export const CHAINS: ChainConfig[] = [
+  { id: 8453, name: 'Base', shortName: 'Base' },
+  { id: 1, name: 'Ethereum', shortName: 'ETH' },
+  { id: 56, name: 'BNB Chain', shortName: 'BNB' },
   { id: 1, name: 'Ethereum', shortName: 'ETH' },
   { id: 56, name: 'BNB Chain', shortName: 'BNB' },
   { id: 8453, name: 'Base', shortName: 'Base' },
@@ -50,18 +53,7 @@ export const CHAINS: ChainConfig[] = [
 
 // Comprehensive token categories
 export const TOKEN_CATEGORIES = [
-  'All',
-  'Meme Coins',
-  'AI Tokens',
-  'Stablecoins',
-  'DeFi Tokens',
-  'Governance Tokens',
-  'Utility Tokens',
-  'GameFi Tokens',
-  'RWA Tokens',
-  'Infrastructure & Tools',
-  'Privacy Tokens',
-  'Other'
+  'All'
 ] as const;
 
 export type TokenCategory = typeof TOKEN_CATEGORIES[number];
