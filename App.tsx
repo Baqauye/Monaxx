@@ -42,6 +42,29 @@ const ChainIcon = ({ chain }: { chain: ChainConfig }) => {
   return <span className="text-xs font-bold">{icons[chain.id] || chain.shortName.charAt(0)}</span>;
 };
 
+/**
+ * Why: keeps treemap density readable across mobile and desktop by capping rendered tiles
+ * according to available viewport area instead of always showing the full dataset.
+ */
+const getAdaptiveTokenLimit = (width: number, height: number): number => {
+  if (width <= 0 || height <= 0) {
+    return 36;
+  }
+
+  const area = width * height;
+  const isMobile = width < 768;
+
+  if (isMobile) {
+    if (area < 180000) return 24;
+    if (area < 260000) return 30;
+    return 36;
+  }
+
+  if (area < 420000) return 40;
+  if (area < 720000) return 52;
+  return 60;
+};
+
 const App: React.FC = () => {
   const [viewMode, setViewMode] = useState<ViewMode>('TreeMap');
   const [tokens, setTokens] = useState<Token[]>([]);
