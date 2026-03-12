@@ -123,9 +123,9 @@ const fetchTokensForChain = async (networkId: number): Promise<Token[]> => {
       filterTokens(
         filters: {
           network: [${networkId}]
-          liquidity: { gt: 1000 }
+          liquidity: { gt: 4000 }
         }
-        limit: 60
+        limit: 200
         rankings: {
           attribute: trendingScore24
           direction: DESC
