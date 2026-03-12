@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { PLAYFUL_COLORS, PROFESSIONAL_COLORS } from './constants';
-import { Token, Mood, ViewMode, CHAINS, ChainConfig } from './types';
+import { Token, Mood, ViewMode, CHAINS, ChainConfig, TOKEN_CATEGORIES } from './types';
 import Treemap from './components/Treemap';
 import DetailModal from './components/DetailModal';
 import { fetchTokensForNetwork } from './services/tokenService';
+import { getCategoryEmoji } from './services/categoryClassifier';
 
 const BarChart2Icon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -48,6 +49,7 @@ const App: React.FC = () => {
   const [filteredTokens, setFilteredTokens] = useState<Token[]>([]);
   const [mood, setMood] = useState<Mood>('Playful');
   const [selectedToken, setSelectedToken] = useState<Token | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const [isDataLoading, setIsDataLoading] = useState(true);
   const [activeChain, setActiveChain] = useState<ChainConfig>(CHAINS[0]);
@@ -92,8 +94,23 @@ const App: React.FC = () => {
   }, [activeChain]);
 
   useEffect(() => {
-    setFilteredTokens(tokens);
-  }, [tokens]);
+    if (selectedCategory === 'All') {
+      setFilteredTokens(tokens);
+    } else {
+      setFilteredTokens(tokens.filter(t => t.category === selectedCategory));
+    }
+  }, [selectedCategory, tokens]);
+
+  // Get categories that exist in current data
+  const availableCategories = Array.from(
+    new Set(tokens.map(t => t.category))
+  ).sort();
+
+  // Get category counts
+  const categoryCounts = tokens.reduce((acc, token) => {
+    acc[token.category] = (acc[token.category] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
 
   const handleChainSelect = (chain: ChainConfig) => {
     setActiveChain(chain);
@@ -166,6 +183,39 @@ const App: React.FC = () => {
           </div>
         </div>
 
+        {/* Category Filter */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2">
+          <div className="flex flex-wrap gap-2 justify-center">
+            {TOKEN_CATEGORIES.map(cat => {
+              const count = cat === 'All' ? tokens.length : (categoryCounts[cat] || 0);
+              const hasTokens = cat === 'All' || availableCategories.includes(cat);
+              
+              if (!hasTokens && cat !== 'All') return null;
+              
+              return (
+                <button
+                  key={cat}
+                  onClick={() => setSelectedCategory(cat)}
+                  className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors flex items-center gap-1.5 ${
+                    selectedCategory === cat
+                      ? (mood === 'Playful'
+                          ? 'bg-indigo-100 text-indigo-800'
+                          : 'bg-indigo-900 text-indigo-200')
+                      : (mood === 'Playful'
+                          ? 'bg-white text-slate-700 hover:bg-slate-100'
+                          : 'bg-slate-800 text-slate-300 hover:bg-slate-700')
+                  }`}
+                >
+                  <span>{getCategoryEmoji(cat)}</span>
+                  <span>{cat}</span>
+                  {count > 0 && (
+                    <span className="text-xs opacity-60 ml-1">({count})</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -212,12 +262,12 @@ const App: React.FC = () => {
               </div>
             ) : filteredTokens.length === 0 ? (
               <div className="text-center opacity-60 p-8">
-                <p className="mb-4">No tokens found for the selected chain.</p>
+                <p className="mb-4">No tokens found in the "{selectedCategory}" category.</p>
                 <button
-                  onClick={() => loadMarketData()}
+                  onClick={() => setSelectedCategory('All')}
                   className="px-4 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition"
                 >
-                  Retry
+                  View All Tokens
                 </button>
               </div>
             ) : dimensions.width > 0 && dimensions.height > 0 ? (
