@@ -115,9 +115,8 @@ const App: React.FC = () => {
   }, [activeChain]);
 
   useEffect(() => {
-    const adaptiveLimit = getAdaptiveTokenLimit(dimensions.width, dimensions.height);
-    setFilteredTokens(tokens.slice(0, adaptiveLimit));
-  }, [tokens, dimensions.width, dimensions.height]);
+    setFilteredTokens(tokens);
+  }, [tokens]);
 
   const handleChainSelect = (chain: ChainConfig) => {
     setActiveChain(chain);

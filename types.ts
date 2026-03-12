@@ -46,6 +46,9 @@ export const CHAINS: ChainConfig[] = [
   { id: 8453, name: 'Base', shortName: 'Base' },
   { id: 1, name: 'Ethereum', shortName: 'ETH' },
   { id: 56, name: 'BNB Chain', shortName: 'BNB' },
+  { id: 1, name: 'Ethereum', shortName: 'ETH' },
+  { id: 56, name: 'BNB Chain', shortName: 'BNB' },
+  { id: 8453, name: 'Base', shortName: 'Base' },
 ];
 
 // Comprehensive token categories
